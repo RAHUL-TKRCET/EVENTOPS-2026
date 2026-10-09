@@ -1,6 +1,14 @@
+import os
+import sys
 import time
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
+
+# Ensure backend directory is in sys.path regardless of execution entrypoint
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +20,7 @@ from app.api.v1.api import api_router
 from app.api.v1.websocket import router as ws_router
 
 startup_timestamp = time.time()
+
 
 
 @asynccontextmanager

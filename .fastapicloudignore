@@ -1,0 +1,30 @@
+# Node.js frontend dependencies & build outputs (deployed statically on GitHub Pages)
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Python virtual environments & local dev database
+backend/venv/
+backend/data/
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+*.db
+.pytest_cache/
+
+# Version control & config
+.git/
+.github/
+.vscode/
+.idea/
+.env*
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

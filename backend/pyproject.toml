@@ -3,7 +3,7 @@ name = "eventops-backend"
 version = "2.0.0"
 description = "EVENTOPS-2026 Core FastAPI Backend - RBAC, QR Cryptography & Google OR-Tools CP-SAT"
 readme = "../README.md"
-requires-python = ">=3.11"
+requires-python = "==3.11.*"
 dependencies = [
     "fastapi[standard]>=0.115.0",
     "pydantic>=2.8.0",
