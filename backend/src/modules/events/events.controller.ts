@@ -50,5 +50,46 @@ export class EventsController {
       next(err);
     }
   }
+
+  public static async addMember(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const addedBy = req.user?.userId || "usr-event";
+      const result = await EventsService.addMember(id, req.body, addedBy);
+      return res.status(201).json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  }
+
+  public static async getMembers(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const members = await EventsService.getMembers(id);
+      return res.status(200).json(members);
+    } catch (err: any) {
+      next(err);
+    }
+  }
+
+  public static async removeMember(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id, memberId } = req.params;
+      const result = await EventsService.removeMember(id, memberId);
+      return res.status(200).json(result);
+    } catch (err: any) {
+      next(err);
+    }
+  }
+
+  public static async getSummary(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const summary = await EventsService.getEventSummary(id);
+      return res.status(200).json(summary);
+    } catch (err: any) {
+      next(err);
+    }
+  }
 }
 

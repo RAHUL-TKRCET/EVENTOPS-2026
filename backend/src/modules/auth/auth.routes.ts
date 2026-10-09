@@ -5,6 +5,7 @@ import { authenticateJWT } from "../../middleware/auth.middleware";
 export const authRouter = Router();
 
 authRouter.post("/login", AuthController.login);
+authRouter.post("/event-login", AuthController.eventLogin);
 authRouter.post("/register", AuthController.register);
 authRouter.get("/me", authenticateJWT, AuthController.getMe);
 authRouter.post("/switch-role", authenticateJWT, AuthController.switchRole);

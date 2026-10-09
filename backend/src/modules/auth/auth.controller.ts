@@ -13,6 +13,19 @@ export class AuthController {
     }
   }
 
+  public static async eventLogin(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { eventId, email, password, role } = req.body;
+      if (!eventId || !email || !password || !role) {
+        return res.status(400).json({ error: "Missing required fields: eventId, email, password, role" });
+      }
+      const result = await AuthService.eventLogin(eventId, email, password, role);
+      return res.status(200).json(result);
+    } catch (err: any) {
+      return res.status(401).json({ error: "Event authentication failed", message: err.message });
+    }
+  }
+
   public static async register(req: Request, res: Response, next: NextFunction) {
     try {
       const validated = RegisterSchema.parse(req.body);

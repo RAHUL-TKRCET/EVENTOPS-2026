@@ -303,10 +303,10 @@ export const ROUTE_ACCESS_RULES: { prefix: string; allowedRoles: UserRole[]; exa
     prefix: "/volunteers/create",
     allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR"],
   },
-  // Communication dispatch
+  // Event Management & Roles Delegation
   {
-    prefix: "/communication/create",
-    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR"],
+    prefix: "/events",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"],
   },
 ];
 
@@ -316,6 +316,7 @@ export const ROUTE_ACCESS_RULES: { prefix: string; allowedRoles: UserRole[]; exa
 export function checkRouteAccess(role: UserRole, pathname: string): { authorized: boolean; allowedRoles?: UserRole[] } {
   // Public / Open Workspace routes always allowed
   if (
+    pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
     pathname.startsWith("/forgot-password") ||
@@ -324,7 +325,9 @@ export function checkRouteAccess(role: UserRole, pathname: string): { authorized
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/workspace") ||
     pathname.startsWith("/organizations") ||
-    pathname.startsWith("/personal-events")
+    pathname.startsWith("/personal-events") ||
+    pathname.includes("/portal") ||
+    pathname.endsWith("/login")
   ) {
     return { authorized: true };
   }

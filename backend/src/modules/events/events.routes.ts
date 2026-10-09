@@ -31,3 +31,26 @@ eventsRouter.patch(
   EventsController.setStatus
 );
 
+// Event Enrolled Members & Delegated Roles (Volunteers, Judges, Staff, Coordinators)
+eventsRouter.get("/:id/members", EventsController.getMembers);
+eventsRouter.post(
+  "/:id/members",
+  authenticateJWT,
+  requireRoles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"]),
+  EventsController.addMember
+);
+eventsRouter.delete(
+  "/:id/members/:memberId",
+  authenticateJWT,
+  requireRoles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"]),
+  EventsController.removeMember
+);
+
+// Event Admin Oversight Summary (All enrolled roles, teams, attendance, incidents)
+eventsRouter.get(
+  "/:id/summary",
+  authenticateJWT,
+  requireRoles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"]),
+  EventsController.getSummary
+);
+

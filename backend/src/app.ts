@@ -58,6 +58,36 @@ export function createApp(): Application {
   app.use("/api/v1/resources", resourcesRouter);
   app.use("/api/v1/analytics", analyticsRouter);
 
+  // Direct PostgreSQL Database Inspection Endpoints
+  app.get("/api/v1/database/tables", async (req: Request, res: Response) => {
+    try {
+      const { db } = await import("./database/connection");
+      const r = await db.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        ORDER BY table_name;
+      `);
+      return res.status(200).json(r.rows);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/v1/database/tables/:tableName", async (req: Request, res: Response) => {
+    try {
+      const { tableName } = req.params;
+      if (!/^[a-zA-Z0-9_]+$/.test(tableName)) {
+        return res.status(400).json({ error: "Invalid table name" });
+      }
+      const { db } = await import("./database/connection");
+      const r = await db.query(`SELECT * FROM ${tableName} LIMIT 100;`);
+      return res.status(200).json({ table: tableName, count: r.rows.length, rows: r.rows });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // 404 Route Catch-All
   app.use("*", (req: Request, res: Response) => {
     res.status(404).json({

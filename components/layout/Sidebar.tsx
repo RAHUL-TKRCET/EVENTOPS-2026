@@ -34,6 +34,7 @@ import {
   Clock,
   LogOut,
   Database,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -154,6 +155,7 @@ export const Sidebar: React.FC = () => {
       { label: "Event Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
       { label: "Control Center", href: "/control-center", icon: <Radio className="w-4 h-4" />, badge: "LIVE" },
       { label: "Teams / Participants", href: "/teams", icon: <Users className="w-4 h-4" />, badge: "120" },
+      { label: "Event Roles Delegation", href: "/events/evt-01/roles", icon: <UserPlus className="w-4 h-4" />, badge: "Staff" },
       { label: "Participant QR Details", href: "/attendance/scanner", icon: <QrCode className="w-4 h-4" /> },
       { label: "Venues & Benches", href: "/venues", icon: <Building className="w-4 h-4" /> },
       { label: "Judges / Evaluators", href: "/judges", icon: <Scale className="w-4 h-4" /> },
@@ -175,6 +177,7 @@ export const Sidebar: React.FC = () => {
       { label: "Control Center", href: "/control-center", icon: <Radio className="w-4 h-4" />, badge: "LIVE" },
       { label: "Events Management", href: "/events", icon: <Calendar className="w-4 h-4" /> },
       { label: "Teams / Participants", href: "/teams", icon: <Users className="w-4 h-4" />, badge: "120" },
+      { label: "Event Roles Delegation", href: "/events/evt-01/roles", icon: <UserPlus className="w-4 h-4" />, badge: "Staff" },
       { label: "QR Attendance", href: "/attendance/scanner", icon: <QrCode className="w-4 h-4" /> },
       { label: "Venues & Benches", href: "/venues", icon: <Building className="w-4 h-4" /> },
       { label: "Judges & Juries", href: "/judges", icon: <Scale className="w-4 h-4" /> },

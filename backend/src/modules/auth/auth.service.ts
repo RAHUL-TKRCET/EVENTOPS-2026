@@ -98,6 +98,41 @@ export class AuthService {
     };
   }
 
+  public static async eventLogin(eventId: string, email: string, password: string, requestedRole: UserRole) {
+    const loginResult = await this.login(email, password, requestedRole);
+    const user = loginResult.user;
+
+    // Super Admin & Event Admin have global authority
+    if (user.role === "SUPER_ADMIN" || user.role === "EVENT_ADMIN" || user.role === "ORGANIZATION_ADMIN") {
+      return { ...loginResult, eventId };
+    }
+
+    // Verify event enrollment for scoped roles
+    const memberCheck = await db.query(
+      "SELECT id, role, status FROM event_members WHERE event_id = $1 AND LOWER(email) = LOWER($2)",
+      [eventId, email]
+    );
+
+    if (memberCheck.rows.length === 0) {
+      if (user.role === "PARTICIPANT") {
+        const teamCheck = await db.query(
+          "SELECT id FROM teams WHERE event_id = $1 AND LOWER(lead_email) = LOWER($2)",
+          [eventId, email]
+        );
+        if (teamCheck.rows.length === 0) {
+          throw new Error(`Enrollment not found: You are not registered for event ${eventId}.`);
+        }
+      } else {
+        throw new Error(`Access Denied: You are not enrolled in event ${eventId} as ${requestedRole}.`);
+      }
+    }
+
+    return {
+      ...loginResult,
+      eventId,
+    };
+  }
+
   public static async register(data: { name: string; email: string; password: string; role?: UserRole; organizationId?: string }) {
     // Check PostgreSQL first
     const dbCheck = await db.query("SELECT id FROM users WHERE LOWER(email) = LOWER($1)", [data.email]);

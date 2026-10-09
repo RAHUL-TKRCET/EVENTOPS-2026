@@ -18,13 +18,16 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const router = useRouter();
   const { isMobileSidebarOpen, setMobileSidebarOpen, theme, currentRole, currentUser } = useAppStore();
 
-  // If on public auth/onboarding pages, render simple container without main ops shell
-  const isAuthPage =
+  // Public pages that do not require an active session
+  const isPublicPage =
+    pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset-password") ||
-    pathname.startsWith("/verify-otp");
+    pathname.startsWith("/verify-otp") ||
+    pathname.includes("/portal") ||
+    pathname.endsWith("/login");
 
   useEffect(() => {
     // Ensure dark class is synchronized on html
@@ -35,9 +38,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     }
   }, [theme]);
 
-  if (isAuthPage) {
+  if (isPublicPage) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+      <main className="min-h-screen bg-slate-950 text-slate-100">
         {children}
       </main>
     );

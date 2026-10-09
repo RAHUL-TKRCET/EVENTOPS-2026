@@ -91,9 +91,27 @@ export class DatabaseService {
           await this.exec(seedSql);
           console.log("[PostgreSQL] Initial seed dataset loaded (Organizations, 9-role accounts, Events, Venues).");
         }
-      } else {
-        console.log("[PostgreSQL] Database tables verified and active.");
       }
+
+      // Ensure event_members table exists
+      await this.exec(`
+        CREATE TABLE IF NOT EXISTS event_members (
+          id VARCHAR(64) PRIMARY KEY,
+          event_id VARCHAR(64) NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+          user_id VARCHAR(64) REFERENCES users(id) ON DELETE CASCADE,
+          name VARCHAR(255) NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          role VARCHAR(32) NOT NULL,
+          phone VARCHAR(50),
+          title VARCHAR(100),
+          zone_or_dept VARCHAR(100),
+          status VARCHAR(32) DEFAULT 'ACTIVE',
+          added_by VARCHAR(64),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(event_id, email)
+        );
+      `);
+      console.log("[PostgreSQL] Database tables verified and active.");
     } catch (err: any) {
       console.warn("[PostgreSQL] Schema initialization note:", err.message);
     }
