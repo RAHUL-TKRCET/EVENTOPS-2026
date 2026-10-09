@@ -98,35 +98,126 @@ export const inMemoryEvents: EventEntity[] = [
 ];
 
 export class EventsService {
-  public static getAll(organizationId?: string | null) {
+  public static async getAll(organizationId?: string | null) {
+    const { db } = await import("../../database/connection");
+    try {
+      const q = organizationId
+        ? `SELECT * FROM events WHERE organization_id = $1 ORDER BY created_at DESC`
+        : `SELECT * FROM events ORDER BY created_at DESC`;
+      const params = organizationId ? [organizationId] : [];
+      const res = await db.query(q, params);
+      if (res.rows.length > 0) {
+        return res.rows.map((row: any) => ({
+          id: row.id,
+          organizationId: row.organization_id,
+          ownerId: row.owner_id,
+          isPersonalEvent: Boolean(row.is_personal_event),
+          name: row.name,
+          type: row.type,
+          description: row.description,
+          location: row.location || "Main Venue Block",
+          startDate: row.start_date,
+          endDate: row.end_date,
+          registrationDeadline: row.registration_deadline,
+          status: row.status,
+          expectedParticipants: row.expected_participants,
+          registeredTeamsCount: 0,
+          currentRound: row.current_round || 1,
+          totalRounds: row.total_rounds || 2,
+          rounds: inMemoryEvents.find((e) => e.id === row.id)?.rounds || [],
+          timeSlots: inMemoryEvents.find((e) => e.id === row.id)?.timeSlots || [],
+          rules: inMemoryEvents.find((e) => e.id === row.id)?.rules || [],
+          createdAt: row.created_at,
+        }));
+      }
+    } catch (_) {}
     if (organizationId) {
       return inMemoryEvents.filter((e) => e.organizationId === organizationId);
     }
     return inMemoryEvents;
   }
 
-  public static getById(id: string) {
+  public static async getById(id: string) {
+    const { db } = await import("../../database/connection");
+    try {
+      const res = await db.query(`SELECT * FROM events WHERE id = $1`, [id]);
+      if (res.rows.length > 0) {
+        const row = res.rows[0];
+        const mem = inMemoryEvents.find((e) => e.id === id);
+        return {
+          id: row.id,
+          organizationId: row.organization_id,
+          ownerId: row.owner_id,
+          isPersonalEvent: Boolean(row.is_personal_event),
+          name: row.name,
+          type: row.type,
+          description: row.description,
+          location: row.location || "Main Venue Block",
+          startDate: row.start_date,
+          endDate: row.end_date,
+          registrationDeadline: row.registration_deadline,
+          status: row.status,
+          expectedParticipants: row.expected_participants,
+          registeredTeamsCount: 0,
+          currentRound: row.current_round || 1,
+          totalRounds: row.total_rounds || 2,
+          rounds: mem?.rounds || [],
+          timeSlots: mem?.timeSlots || [],
+          rules: mem?.rules || [],
+          createdAt: row.created_at,
+        };
+      }
+    } catch (_) {}
     return inMemoryEvents.find((e) => e.id === id);
   }
 
-  public static create(data: Partial<EventEntity>, ownerId: string) {
+  public static async create(data: Partial<EventEntity>, ownerId: string) {
+    const { db } = await import("../../database/connection");
+    const eventId = data.id || `evt-${Date.now()}`;
+    const organizationId = data.isPersonalEvent ? null : (data.organizationId || "org-01");
+    const name = data.name || "Untitled Operations Event";
+    const type = data.type || "Hackathon";
+    const description = data.description || "Managed by EVENTOPS 2026.";
+    const location = data.location || "Main Venue Block";
+    const startDate = data.startDate || new Date().toISOString();
+    const endDate = data.endDate || new Date(Date.now() + 86400000 * 2).toISOString();
+    const registrationDeadline = data.registrationDeadline || new Date().toISOString();
+    const status = (data.status as any) || "DRAFT";
+    const expectedParticipants = data.expectedParticipants || 100;
+    const totalRounds = data.totalRounds || 2;
+
+    let safeOwnerId: string | null = null;
+    if (ownerId) {
+      const uRes = await db.query("SELECT id FROM users WHERE id = $1", [ownerId]).catch(() => ({ rows: [] }));
+      if (uRes.rows.length > 0) safeOwnerId = ownerId;
+    }
+
+    await db.query(
+      `INSERT INTO events (id, organization_id, owner_id, is_personal_event, name, type, description, location, start_date, end_date, registration_deadline, status, expected_participants, current_round, total_rounds, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 1, $14, NOW())
+       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description`,
+      [eventId, organizationId, safeOwnerId, Boolean(data.isPersonalEvent), name, type, description, location, startDate, endDate, registrationDeadline, status, expectedParticipants, totalRounds]
+    ).catch((err: any) => {
+      console.warn("[PostgreSQL] Events create note:", err.message);
+    });
+
     const newEvent: EventEntity = {
-      id: `evt-${Date.now()}`,
-      organizationId: data.isPersonalEvent ? null : (data.organizationId || "org-01"),
-      ownerId,
+      id: eventId,
+      organizationId,
+      ownerId: safeOwnerId || ownerId,
       isPersonalEvent: Boolean(data.isPersonalEvent),
-      name: data.name || "Untitled Operations Event",
-      type: data.type || "Hackathon",
-      description: data.description || "Managed by EVENTOPS 2026.",
-      location: data.location || "Main Venue Block",
-      startDate: data.startDate || new Date().toISOString(),
-      endDate: data.endDate || new Date(Date.now() + 86400000 * 2).toISOString(),
-      registrationDeadline: data.registrationDeadline || new Date().toISOString(),
-      status: data.status || "DRAFT",
-      expectedParticipants: data.expectedParticipants || 100,
+      name,
+      type,
+      description,
+      location,
+      startDate,
+      endDate,
+      registrationDeadline,
+      status,
+      expectedParticipants,
       registeredTeamsCount: 0,
       currentRound: 1,
-      totalRounds: data.totalRounds || 2,
+      totalRounds,
       rounds: data.rounds || [],
       timeSlots: data.timeSlots || [],
       rules: data.rules || [],
@@ -136,14 +227,23 @@ export class EventsService {
     return newEvent;
   }
 
-  public static update(id: string, updates: Partial<EventEntity>) {
+  public static async update(id: string, updates: Partial<EventEntity>) {
+    const { db } = await import("../../database/connection");
+    if (updates.name || updates.description || updates.status) {
+      await db.query(
+        `UPDATE events SET name = COALESCE($1, name), description = COALESCE($2, description), status = COALESCE($3, status) WHERE id = $4`,
+        [updates.name || null, updates.description || null, updates.status || null, id]
+      ).catch(() => {});
+    }
     const idx = inMemoryEvents.findIndex((e) => e.id === id);
-    if (idx === -1) throw new Error("Event not found");
-    inMemoryEvents[idx] = { ...inMemoryEvents[idx], ...updates };
-    return inMemoryEvents[idx];
+    if (idx !== -1) {
+      inMemoryEvents[idx] = { ...inMemoryEvents[idx], ...updates };
+      return inMemoryEvents[idx];
+    }
+    return updates;
   }
 
-  public static setStatus(id: string, status: EventStatus) {
+  public static async setStatus(id: string, status: EventStatus) {
     return this.update(id, { status });
   }
 

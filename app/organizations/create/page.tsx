@@ -55,7 +55,7 @@ export default function CreateOrganizationPage() {
     description: "",
     city: "",
     country: "India",
-    contactEmail: currentUser.email || "",
+    contactEmail: currentUser?.email || "",
     contactPhone: "",
     website: "",
     size: "100-500",

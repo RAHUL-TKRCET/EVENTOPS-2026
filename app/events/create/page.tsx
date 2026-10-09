@@ -45,26 +45,142 @@ export default function CreateEventPage() {
   const [expectedParticipants, setExpectedParticipants] = useState("500");
   const [totalRounds, setTotalRounds] = useState("3");
   const [isLoading, setIsLoading] = useState(false);
+  const [createdEvent, setCreatedEvent] = useState<any | null>(null);
+  const [copiedPortal, setCopiedPortal] = useState(false);
+  const [copiedLogin, setCopiedLogin] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    const newEvent = await eventsApi.create({
-      name,
-      type,
-      description,
-      startDate: new Date(startDate).toISOString(),
-      endDate: new Date(endDate).toISOString(),
-      registrationDeadline: new Date(registrationDeadline).toISOString(),
-      expectedParticipants: parseInt(expectedParticipants, 10) || 500,
-      totalRounds: parseInt(totalRounds, 10) || 3,
-    });
+    try {
+      const newEvent = await eventsApi.create({
+        name,
+        type,
+        description,
+        startDate: new Date(startDate).toISOString(),
+        endDate: new Date(endDate).toISOString(),
+        registrationDeadline: new Date(registrationDeadline).toISOString(),
+        expectedParticipants: parseInt(expectedParticipants, 10) || 500,
+        totalRounds: parseInt(totalRounds, 10) || 3,
+      });
 
-    setCurrentEvent(newEvent);
-    setIsLoading(false);
-    router.push(`/events/${newEvent.id}`);
+      setCurrentEvent(newEvent);
+      setCreatedEvent(newEvent);
+    } catch (err: any) {
+      alert("Failed to create event: " + err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  const portalUrl = createdEvent ? `${origin}/events/${createdEvent.id}/portal` : "";
+  const loginUrl = createdEvent ? `${origin}/events/${createdEvent.id}/login` : "";
+
+  const copyToClipboard = (text: string, type: "portal" | "login") => {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(text);
+      if (type === "portal") {
+        setCopiedPortal(true);
+        setTimeout(() => setCopiedPortal(false), 2000);
+      } else {
+        setCopiedLogin(true);
+        setTimeout(() => setCopiedLogin(false), 2000);
+      }
+    }
+  };
+
+  if (createdEvent) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300">
+        <div className="p-8 rounded-3xl border border-emerald-500/30 bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950 text-center space-y-4 shadow-2xl">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mx-auto">
+            <Check className="w-8 h-8 stroke-[3]" />
+          </div>
+
+          <div className="space-y-1">
+            <span className="font-mono text-xs uppercase px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-bold">
+              EVENT CREATED & REGISTERED IN POSTGRESQL
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-bold font-mono text-white mt-2">
+              {createdEvent.name}
+            </h1>
+            <p className="text-xs text-slate-400 font-mono">
+              Event ID: <strong className="text-indigo-400">{createdEvent.id}</strong> • Type: {createdEvent.type}
+            </p>
+          </div>
+
+          <p className="text-xs text-slate-300 max-w-xl mx-auto">
+            Your event is now live! Below are the public links to share with participants and delegates, and the role login terminal for your event staff.
+          </p>
+
+          <div className="space-y-3 pt-4 text-left">
+            {/* Link 1: Event Details & Portal Link */}
+            <div className="p-4 rounded-2xl border border-indigo-500/30 bg-slate-900/90 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold font-mono text-indigo-300 uppercase flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5" /> 1. Public Event Details & Portal
+                </span>
+                <button
+                  onClick={() => copyToClipboard(portalUrl, "portal")}
+                  className="text-xs text-indigo-400 hover:text-white transition flex items-center gap-1 font-mono font-medium"
+                >
+                  {copiedPortal ? "✓ Copied!" : "Copy Link"}
+                </button>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-xs text-sky-300 select-all break-all">
+                {portalUrl}
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Share with attendees to view event abstract, guidelines, schedules, and rounds overview.
+              </p>
+            </div>
+
+            {/* Link 2: Role-Specific Login Terminal Link */}
+            <div className="p-4 rounded-2xl border border-teal-500/30 bg-slate-900/90 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold font-mono text-teal-300 uppercase flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5" /> 2. Role-Specific Login Terminal
+                </span>
+                <button
+                  onClick={() => copyToClipboard(loginUrl, "login")}
+                  className="text-xs text-teal-400 hover:text-white transition flex items-center gap-1 font-mono font-medium"
+                >
+                  {copiedLogin ? "✓ Copied!" : "Copy Link"}
+                </button>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-xs text-teal-300 select-all break-all">
+                {loginUrl}
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Dedicated terminal for enrolled Volunteers, Judges, Coordinators, Technical Staff, and Resource Managers.
+              </p>
+            </div>
+          </div>
+
+          {/* Action CTAs */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-6 border-t border-slate-800/80">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => router.push(`/events/${createdEvent.id}/roles`)}
+            >
+              Delegate Roles & Staff (Add Volunteers/Judges)
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => router.push(`/events/${createdEvent.id}`)}
+              rightIcon={<ArrowRight className="w-4 h-4" />}
+            >
+              Go to Event Command Hub
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

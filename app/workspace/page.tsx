@@ -68,8 +68,8 @@ export default function WorkspaceSelectionPage() {
         <div className="flex items-center gap-3">
           <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span>{currentUser.name}</span>
-            <span className="text-[10px] text-indigo-400 font-mono">({currentUser.role})</span>
+            <span>{currentUser?.name || "User"}</span>
+            <span className="text-[10px] text-indigo-400 font-mono">({currentUser?.role || "OPERATOR"})</span>
           </div>
 
           <button
@@ -95,7 +95,7 @@ export default function WorkspaceSelectionPage() {
             <span>WORKSPACE SELECTOR</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            Welcome back, {currentUser.name.split(" ")[0]}
+            Welcome back, {(currentUser?.name || "User").split(" ")[0]}
           </h1>
           <p className="text-sm text-slate-400 leading-relaxed">
             What would you like to manage today? Choose an organization workspace or run your independent personal events without paperwork.

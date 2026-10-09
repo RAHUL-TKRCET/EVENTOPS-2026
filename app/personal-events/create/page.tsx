@@ -303,7 +303,7 @@ export default function CreatePersonalEventPage() {
                 <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-semibold">Independent Workspace: </span>
-                  This event will be created directly under your personal account (<span className="text-white font-mono">{currentUser.email}</span>) without an organization affiliation. You can invite participants, score submissions, and scan attendee QR codes.
+                  This event will be created directly under your personal account (<span className="text-white font-mono">{currentUser?.email || "personal account"}</span>) without an organization affiliation. You can invite participants, score submissions, and scan attendee QR codes.
                 </div>
               </div>
 

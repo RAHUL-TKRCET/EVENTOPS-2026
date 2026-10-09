@@ -21,14 +21,16 @@ export default function ProfileSettingsPage() {
   const pathname = usePathname();
   const { currentUser, setCurrentUser } = useAppStore();
 
-  const [name, setName] = useState(currentUser.name);
-  const [email, setEmail] = useState(currentUser.email);
-  const [phone, setPhone] = useState(currentUser.phone || "+1 415-555-0199");
+  const [name, setName] = useState(currentUser?.name || "Admin User");
+  const [email, setEmail] = useState(currentUser?.email || "admin@eventops.demo");
+  const [phone, setPhone] = useState(currentUser?.phone || "+1 415-555-0199");
   const [saved, setSaved] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    setCurrentUser({ ...currentUser, name, email, phone });
+    if (currentUser) {
+      setCurrentUser({ ...currentUser, name, email, phone });
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -63,7 +65,7 @@ export default function ProfileSettingsPage() {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-slate-100">{name}</h3>
-            <p className="text-xs text-slate-400 font-mono">Role: {currentUser.role}</p>
+            <p className="text-xs text-slate-400 font-mono">Role: {currentUser?.role || "USER"}</p>
           </div>
         </div>
 

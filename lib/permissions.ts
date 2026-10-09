@@ -290,8 +290,22 @@ export const ROUTE_ACCESS_RULES: { prefix: string; allowedRoles: UserRole[]; exa
   },
   // Team creation & management
   {
-    prefix: "/teams/register",
+    prefix: "/teams",
     allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR"],
+  },
+  // Resources & Food inventory
+  {
+    prefix: "/resources",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "RESOURCE_MANAGER", "COORDINATOR"],
+  },
+  // Analytics & Reports
+  {
+    prefix: "/analytics",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"],
+  },
+  {
+    prefix: "/reports",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"],
   },
   // Event creation
   {
@@ -342,10 +356,11 @@ export function checkRouteAccess(role: UserRole, pathname: string): { authorized
     }
   }
 
-  // Restricted base dashboard: Judge and Participant should go to their specific portal
+  // Restricted base dashboard: non-admins must go to their specific portal
   if (pathname === "/dashboard") {
-    if (role === "PARTICIPANT" || role === "JUDGE" || role === "SUPER_ADMIN") {
-      return { authorized: false, allowedRoles: ["ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR"] };
+    const adminRoles: UserRole[] = ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR"];
+    if (!adminRoles.includes(role)) {
+      return { authorized: false, allowedRoles: adminRoles };
     }
   }
 

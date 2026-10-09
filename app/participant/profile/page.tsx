@@ -11,8 +11,8 @@ import { useRouter } from "next/navigation";
 export default function ParticipantProfilePage() {
   const router = useRouter();
   const { currentUser } = useAppStore();
-  const [name, setName] = useState(currentUser.name || "Devon Zhang");
-  const [email, setEmail] = useState(currentUser.email || "student@eventops.demo");
+  const [name, setName] = useState(currentUser?.name || "Devon Zhang");
+  const [email, setEmail] = useState(currentUser?.email || "student@eventops.demo");
   const [phone, setPhone] = useState("+1 415-555-0456");
   const [dietary, setDietary] = useState("VEG");
   const [tShirt, setTShirt] = useState("L");

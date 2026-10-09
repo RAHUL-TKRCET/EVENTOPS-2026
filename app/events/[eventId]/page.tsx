@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { mockEvents } from "@/lib/mock-data/events";
 import { KPICard } from "@/components/ui/KPICard";
@@ -22,6 +22,12 @@ import {
   Copy,
   ExternalLink,
   CheckCircle2,
+  HeartHandshake,
+  Wrench,
+  Package,
+  AlertTriangle,
+  Radio,
+  KeyRound,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -30,26 +36,74 @@ export default function EventDetailPage() {
   const router = useRouter();
   const eventId = params.eventId as string;
 
-  const event = mockEvents.find((e) => e.id === eventId) || mockEvents[0];
-  const [copiedLink, setCopiedLink] = useState(false);
+  const [event, setEvent] = useState<any>(null);
+  const [summaryData, setSummaryData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [copiedPortal, setCopiedPortal] = useState(false);
+  const [copiedLogin, setCopiedLogin] = useState(false);
 
-  const portalUrl = typeof window !== "undefined" ? `${window.location.origin}/events/${event.id}/portal` : `/events/${event.id}/portal`;
+  const getAuthHeaders = () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("eventops_token") : "";
+    return {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  };
 
-  const handleCopyLink = () => {
+  useEffect(() => {
+    // 1. Fetch event metadata
+    fetch(`http://localhost:5000/api/v1/events/${eventId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setEvent(data);
+        else setEvent(mockEvents.find((e) => e.id === eventId) || mockEvents[0]);
+      })
+      .catch(() => {
+        setEvent(mockEvents.find((e) => e.id === eventId) || mockEvents[0]);
+      });
+
+    // 2. Fetch event summary & enrolled members
+    fetch(`http://localhost:5000/api/v1/events/${eventId}/summary`, {
+      headers: getAuthHeaders(),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setSummaryData(data);
+      })
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, [eventId]);
+
+  const activeEvent = event || mockEvents.find((e) => e.id === eventId) || mockEvents[0];
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  const portalUrl = `${origin}/events/${activeEvent.id}/portal`;
+  const loginUrl = `${origin}/events/${activeEvent.id}/login`;
+
+  const copyToClipboard = (text: string, type: "portal" | "login") => {
     if (typeof window !== "undefined") {
-      navigator.clipboard.writeText(portalUrl);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2000);
+      navigator.clipboard.writeText(text);
+      if (type === "portal") {
+        setCopiedPortal(true);
+        setTimeout(() => setCopiedPortal(false), 2000);
+      } else {
+        setCopiedLogin(true);
+        setTimeout(() => setCopiedLogin(false), 2000);
+      }
     }
   };
 
+  const enrolledMembers = summaryData?.enrolledMembers || [];
+  const teamsList = summaryData?.teams || [];
+  const roleBreakdown = summaryData?.memberCountByRole || {};
+
   const submodules = [
-    { title: "Enrolled Roles & Delegation", desc: "Add Volunteers, Judges, Coordinators & Staff", href: `/events/${event.id}/roles`, icon: <UserPlus className="w-5 h-5 text-sky-400" /> },
-    { title: "Rounds & Timeline", desc: "Progression quotas & schedule", href: `/events/${event.id}/rounds`, icon: <Layers className="w-5 h-5 text-indigo-400" /> },
-    { title: "Time Slots", desc: "Capacity windows & pitch intervals", href: `/events/${event.id}/timeslots`, icon: <Clock className="w-5 h-5 text-sky-400" /> },
-    { title: "Evaluation Criteria", desc: "Dynamic rubrics & scoring weights", href: `/events/${event.id}/criteria`, icon: <Trophy className="w-5 h-5 text-amber-400" /> },
-    { title: "Event Rules & Safety", desc: "Eligibility & code of conduct", href: `/events/${event.id}/rules`, icon: <ShieldCheck className="w-5 h-5 text-emerald-400" /> },
-    { title: "Event Settings", desc: "Metadata, banner & access flags", href: `/events/${event.id}/settings`, icon: <Settings className="w-5 h-5 text-slate-400" /> },
+    { title: "Enrolled Roles & Delegation", desc: "Add Volunteers, Judges, Coordinators & Staff", href: `/events/${activeEvent.id}/roles`, icon: <UserPlus className="w-5 h-5 text-sky-400" /> },
+    { title: "Rounds & Timeline", desc: "Progression quotas & schedule", href: `/events/${activeEvent.id}/rounds`, icon: <Layers className="w-5 h-5 text-indigo-400" /> },
+    { title: "Time Slots", desc: "Capacity windows & pitch intervals", href: `/events/${activeEvent.id}/timeslots`, icon: <Clock className="w-5 h-5 text-sky-400" /> },
+    { title: "Evaluation Criteria", desc: "Dynamic rubrics & scoring weights", href: `/events/${activeEvent.id}/criteria`, icon: <Trophy className="w-5 h-5 text-amber-400" /> },
+    { title: "Event Rules & Safety", desc: "Eligibility & code of conduct", href: `/events/${activeEvent.id}/rules`, icon: <ShieldCheck className="w-5 h-5 text-emerald-400" /> },
+    { title: "Event Settings", desc: "Metadata, banner & access flags", href: `/events/${activeEvent.id}/settings`, icon: <Settings className="w-5 h-5 text-slate-400" /> },
   ];
 
   return (
@@ -59,23 +113,24 @@ export default function EventDetailPage() {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-indigo-400 font-bold uppercase">{event.id}</span>
-              <StatusBadge status={event.status} />
+              <span className="font-mono text-xs text-indigo-400 font-bold uppercase">{activeEvent.id}</span>
+              <StatusBadge status={activeEvent.status || "LIVE"} />
               <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">
-                {event.type}
+                {activeEvent.type}
               </span>
             </div>
-            <h2 className="text-xl md:text-2xl font-bold font-mono text-white mt-1">{event.name}</h2>
-            <p className="text-xs text-slate-400 max-w-2xl mt-1">{event.description}</p>
+            <h2 className="text-xl md:text-2xl font-bold font-mono text-white mt-1">{activeEvent.name}</h2>
+            <p className="text-xs text-slate-400 max-w-2xl mt-1">{activeEvent.description}</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push("/allocation/optimization")}
+              onClick={() => router.push(`/events/${activeEvent.id}/roles`)}
+              leftIcon={<UserPlus className="w-3.5 h-3.5 text-sky-400" />}
             >
-              Run Allocation
+              Add Staff / Roles
             </Button>
             <Button
               variant="primary"
@@ -90,77 +145,106 @@ export default function EventDetailPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-800/80 text-xs">
           <div>
             <span className="text-slate-500 text-[11px]">Starts</span>
-            <p className="font-mono font-medium text-slate-200">{new Date(event.startDate).toLocaleString()}</p>
+            <p className="font-mono font-medium text-slate-200">{new Date(activeEvent.startDate).toLocaleString()}</p>
           </div>
           <div>
             <span className="text-slate-500 text-[11px]">Ends</span>
-            <p className="font-mono font-medium text-slate-200">{new Date(event.endDate).toLocaleString()}</p>
+            <p className="font-mono font-medium text-slate-200">{new Date(activeEvent.endDate).toLocaleString()}</p>
           </div>
           <div>
             <span className="text-slate-500 text-[11px]">Registration Deadline</span>
-            <p className="font-mono font-medium text-slate-200">{new Date(event.registrationDeadline).toLocaleDateString()}</p>
+            <p className="font-mono font-medium text-slate-200">{new Date(activeEvent.registrationDeadline).toLocaleDateString()}</p>
           </div>
           <div>
             <span className="text-slate-500 text-[11px]">Current Stage</span>
-            <p className="font-mono font-bold text-indigo-400">Round {event.currentRound} of {event.totalRounds}</p>
+            <p className="font-mono font-bold text-indigo-400">Round {activeEvent.currentRound || 1} of {activeEvent.totalRounds || 2}</p>
           </div>
         </div>
       </div>
 
-      {/* Shareable Public Event Portal & Dedicated Role Login Link Banner */}
-      <div className="p-5 rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-slate-900 to-slate-900 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-semibold uppercase">
-              Event Portal & Role Login Link
-            </span>
-            <span className="text-[11px] text-slate-400 font-mono">Share with Participants, Judges, Volunteers & Staff</span>
+      {/* Shareable Links Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Card 1: Public Event Portal Link */}
+        <div className="p-5 rounded-2xl border border-indigo-500/30 bg-slate-900/90 shadow-xl space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-bold uppercase">
+                Public Event Portal
+              </span>
+              <span className="text-xs text-slate-400">Details & Schedules</span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => copyToClipboard(portalUrl, "portal")}
+              leftIcon={copiedPortal ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            >
+              {copiedPortal ? "Copied!" : "Copy"}
+            </Button>
           </div>
-          <p className="font-mono text-xs text-sky-300 select-all font-semibold">
+          <p className="font-mono text-xs text-sky-300 select-all truncate bg-slate-950 p-2 rounded-lg border border-slate-800">
             {portalUrl}
           </p>
-          <p className="text-[11px] text-slate-400">
-            Dedicated portal displaying event rules, schedule, and role-specific login terminals for this event.
-          </p>
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-[11px] text-slate-400">Public link for participants, audiences & press.</p>
+            <button
+              onClick={() => window.open(portalUrl, "_blank")}
+              className="text-xs font-mono text-indigo-400 hover:text-white flex items-center gap-1"
+            >
+              Open <ExternalLink className="w-3 h-3" />
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleCopyLink}
-            leftIcon={copiedLink ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-          >
-            {copiedLink ? "Link Copied!" : "Copy Portal Link"}
-          </Button>
-
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => window.open(portalUrl, "_blank")}
-            rightIcon={<ExternalLink className="w-3.5 h-3.5" />}
-          >
-            Open Role Login
-          </Button>
+        {/* Card 2: Dedicated Role Login Terminal Link */}
+        <div className="p-5 rounded-2xl border border-teal-500/30 bg-slate-900/90 shadow-xl space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-teal-500/20 border border-teal-500/30 text-teal-300 font-bold uppercase">
+                Role Login Terminal
+              </span>
+              <span className="text-xs text-slate-400">Staff Authentication</span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => copyToClipboard(loginUrl, "login")}
+              leftIcon={copiedLogin ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            >
+              {copiedLogin ? "Copied!" : "Copy"}
+            </Button>
+          </div>
+          <p className="font-mono text-xs text-teal-300 select-all truncate bg-slate-950 p-2 rounded-lg border border-slate-800">
+            {loginUrl}
+          </p>
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-[11px] text-slate-400">For Volunteers, Judges, Coordinators & Staff.</p>
+            <button
+              onClick={() => window.open(loginUrl, "_blank")}
+              className="text-xs font-mono text-teal-400 hover:text-white flex items-center gap-1"
+            >
+              Open <ExternalLink className="w-3 h-3" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Event Admin Oversight Data Cards */}
+      {/* Event Admin Oversight KPIs */}
       <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div>
             <h3 className="text-sm font-bold text-white font-mono flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-sky-400" />
-              Event Admin Data Oversight & Enrolled Roles
+              Event Admin Data Oversight & PostgreSQL Relational Telemetry
             </h3>
             <p className="text-xs text-slate-400">
-              Complete administrative access across all registered teams, juries, volunteers, and operational telemetry.
+              Real-time administrative data across enrolled roles, registered teams, attendance logs, and incidents for <strong className="text-slate-200">{activeEvent.name}</strong>.
             </p>
           </div>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => router.push(`/events/${event.id}/roles`)}
+            onClick={() => router.push(`/events/${activeEvent.id}/roles`)}
             rightIcon={<UserPlus className="w-3.5 h-3.5" />}
           >
             Manage Delegated Staff
@@ -169,29 +253,129 @@ export default function EventDetailPage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-1">
-            <span className="text-[10px] uppercase font-mono text-slate-400">REGISTERED TEAMS</span>
-            <p className="text-xl font-bold font-mono text-white">120 Teams</p>
-            <p className="text-[11px] text-slate-400">500+ Enrolled Participants</p>
+            <span className="text-[10px] uppercase font-mono text-slate-400">ENROLLED STAFF</span>
+            <p className="text-xl font-bold font-mono text-sky-400">
+              {enrolledMembers.length > 0 ? `${enrolledMembers.length} Members` : "6 Roles"}
+            </p>
+            <p className="text-[11px] text-slate-400">
+              Volunteers, Judges & Tech Staff
+            </p>
           </div>
 
           <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-1">
-            <span className="text-[10px] uppercase font-mono text-slate-400">DELEGATED STAFF</span>
-            <p className="text-xl font-bold font-mono text-sky-400">Volunteers & Judges</p>
-            <p className="text-[11px] text-slate-400">Active Roles in PostgreSQL</p>
+            <span className="text-[10px] uppercase font-mono text-slate-400">REGISTERED TEAMS</span>
+            <p className="text-xl font-bold font-mono text-white">
+              {summaryData?.totalTeams ? `${summaryData.totalTeams} Teams` : "120 Teams"}
+            </p>
+            <p className="text-[11px] text-slate-400">
+              {summaryData?.totalTeams ? `${summaryData.totalTeams * 4} Hackers` : "500+ Participants"}
+            </p>
           </div>
 
           <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-1">
             <span className="text-[10px] uppercase font-mono text-slate-400">ATTENDANCE CHECK-INS</span>
-            <p className="text-xl font-bold font-mono text-emerald-400">114 Verified</p>
+            <p className="text-xl font-bold font-mono text-emerald-400">
+              {summaryData?.attendanceScans ? `${summaryData.attendanceScans} Verified` : "114 Verified"}
+            </p>
             <p className="text-[11px] text-slate-400">HMAC-SHA256 Token Scans</p>
           </div>
 
           <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-1">
-            <span className="text-[10px] uppercase font-mono text-slate-400">ALLOCATION STATUS</span>
-            <p className="text-xl font-bold font-mono text-amber-400">CP-SAT Optimized</p>
-            <p className="text-[11px] text-slate-400">12 Venues & Benches Assigned</p>
+            <span className="text-[10px] uppercase font-mono text-slate-400">ACTIVE INCIDENTS</span>
+            <p className="text-xl font-bold font-mono text-amber-400">
+              {summaryData?.incidentCount || 0} Open
+            </p>
+            <p className="text-[11px] text-slate-400">Telemetry Alert Watch</p>
           </div>
         </div>
+
+        {/* Delegated Roles Breakdown Pills */}
+        <div className="pt-2 flex flex-wrap items-center gap-2 text-xs font-mono">
+          <span className="text-slate-500 text-[11px] uppercase">Enrolled Staff By Role:</span>
+          <span className="px-2.5 py-0.5 rounded-full border border-teal-500/30 bg-teal-500/10 text-teal-300">
+            Volunteers: {roleBreakdown["VOLUNTEER"] || 0}
+          </span>
+          <span className="px-2.5 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300">
+            Judges: {roleBreakdown["JUDGE"] || 0}
+          </span>
+          <span className="px-2.5 py-0.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+            Coordinators: {roleBreakdown["COORDINATOR"] || 0}
+          </span>
+          <span className="px-2.5 py-0.5 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-300">
+            Tech Staff: {roleBreakdown["TECHNICAL_STAFF"] || 0}
+          </span>
+          <span className="px-2.5 py-0.5 rounded-full border border-rose-500/30 bg-rose-500/10 text-rose-300">
+            Resource Mgr: {roleBreakdown["RESOURCE_MANAGER"] || 0}
+          </span>
+        </div>
+      </div>
+
+      {/* Enrolled Roles Table Preview */}
+      <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div>
+            <h3 className="text-sm font-bold text-white font-mono flex items-center gap-2">
+              <Users className="w-4 h-4 text-indigo-400" />
+              Enrolled Roles & Staff Delegation Roster
+            </h3>
+            <p className="text-xs text-slate-400">
+              Personnel delegated and authorized for this event.
+            </p>
+          </div>
+          <Link
+            href={`/events/${activeEvent.id}/roles`}
+            className="text-xs font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+          >
+            Manage All Staff <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        {enrolledMembers.length === 0 ? (
+          <div className="p-8 text-center rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-3">
+            <UserPlus className="w-8 h-8 text-slate-500 mx-auto" />
+            <p className="text-xs text-slate-400">No staff members enrolled yet for this event.</p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => router.push(`/events/${activeEvent.id}/roles`)}
+            >
+              Add First Volunteer / Judge
+            </Button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase text-[10px]">
+                <tr>
+                  <th className="py-2.5 px-3">Name</th>
+                  <th className="py-2.5 px-3">Role</th>
+                  <th className="py-2.5 px-3">Email</th>
+                  <th className="py-2.5 px-3">Title / Zone</th>
+                  <th className="py-2.5 px-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                {enrolledMembers.slice(0, 5).map((m: any) => (
+                  <tr key={m.id} className="hover:bg-slate-800/30 transition">
+                    <td className="py-2.5 px-3 font-medium text-white">{m.name}</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                        {m.role}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-400">{m.email}</td>
+                    <td className="py-2.5 px-3 text-slate-400">{m.title || m.zone_or_dept || "—"}</td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        {m.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Submodule Jump Cards */}

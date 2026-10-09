@@ -6,8 +6,8 @@ import { requireRoles } from "../../middleware/rbac.middleware";
 export const eventsRouter = Router();
 
 // Public / Authenticated read routes
+eventsRouter.get("/:id", EventsController.getById);
 eventsRouter.get("/", authenticateJWT, EventsController.getAll);
-eventsRouter.get("/:id", authenticateJWT, EventsController.getById);
 
 // Admin / Organizer mutating routes
 eventsRouter.post(
