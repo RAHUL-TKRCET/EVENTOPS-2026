@@ -33,6 +33,7 @@ import {
   Sparkles,
   Clock,
   LogOut,
+  Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -164,6 +165,7 @@ export const Sidebar: React.FC = () => {
       { label: "Incidents Escalation", href: "/incidents", icon: <AlertTriangle className="w-4 h-4" /> },
       { label: "Communication", href: "/communication", icon: <Megaphone className="w-4 h-4" /> },
       { label: "Analytics & Reports", href: "/analytics/attendance", icon: <BarChart3 className="w-4 h-4" /> },
+      { label: "Database Explorer", href: "/database", icon: <Database className="w-4 h-4" />, badge: "PostgreSQL" },
       { label: "Event Settings", href: "/events/evt-01/settings", icon: <Settings className="w-4 h-4" /> },
     ];
   } else {
@@ -185,6 +187,7 @@ export const Sidebar: React.FC = () => {
       { label: "Communication", href: "/communication", icon: <Megaphone className="w-4 h-4" /> },
       { label: "AI Assistant", href: "/ai-assistant", icon: <Bot className="w-4 h-4" />, badge: "Copilot" },
       { label: "Analytics & Reports", href: "/analytics/attendance", icon: <BarChart3 className="w-4 h-4" /> },
+      { label: "Database Explorer", href: "/database", icon: <Database className="w-4 h-4" />, badge: "PostgreSQL" },
       { label: "Organization Settings", href: "/settings/organization", icon: <Settings className="w-4 h-4" /> },
     ];
   }
