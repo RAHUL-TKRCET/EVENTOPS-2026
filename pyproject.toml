@@ -29,3 +29,21 @@ entrypoint = "main:app"
 pythonpath = ["backend"]
 testpaths = ["backend/tests"]
 
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["backend*"]
+exclude = [
+    "app*",
+    "lib*",
+    "store*",
+    "types*",
+    "public*",
+    "components*",
+    "tests*",
+    "node_modules*",
+]
+
