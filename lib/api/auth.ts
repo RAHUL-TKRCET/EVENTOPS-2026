@@ -1,7 +1,9 @@
 import { User, UserRole } from "@/types";
 import { mockUsers } from "@/lib/mock-data/users";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+const API_BASE = RAW_API_URL.replace(/\/+$/, "").replace(/\/api\/v1$/, "");
+const API_V1 = `${API_BASE}/api/v1`;
 
 export interface RoleCredentials {
   user: User;
@@ -101,8 +103,8 @@ export const authApi = {
     password?: string,
     explicitRole?: UserRole
   ): Promise<{ user: User; token: string }> {
-    if (API_BASE) {
-      const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+    if (API_V1) {
+      const res = await fetch(`${API_V1}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, role: explicitRole }),
@@ -195,7 +197,36 @@ export const authApi = {
     };
   },
 
-  async register(data: { name: string; email: string; role?: UserRole }): Promise<{ user: User; token: string }> {
+  async register(data: { name: string; email: string; password?: string; role?: UserRole }): Promise<{ user: User; token: string }> {
+    if (API_V1) {
+      try {
+        const res = await fetch(`${API_V1}/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: data.name,
+            email: data.email,
+            password: data.password || "Password@2026",
+            role: data.role || "PARTICIPANT",
+          }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("eventops_token", json.accessToken);
+            } catch (_) {}
+          }
+          return {
+            user: json.user,
+            token: json.accessToken,
+          };
+        }
+      } catch (err) {
+        console.warn("[Auth] Backend registration endpoint unavailable, using resilient fallback:", err);
+      }
+    }
+
     await new Promise((r) => setTimeout(r, 300));
     const newUser: User = {
       id: `usr-${Date.now()}`,

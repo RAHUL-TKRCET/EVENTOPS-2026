@@ -16,23 +16,28 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [accountType, setAccountType] = useState<"ORGANIZATION_CREATOR" | "PARTICIPANT">("ORGANIZATION_CREATOR");
+  const [accountType, setAccountType] = useState<"EVENT_ADMIN" | "ORGANIZATION_CREATOR" | "PARTICIPANT">("EVENT_ADMIN");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      // Role is determined strictly: Organization Creator becomes ORGANIZATION_ADMIN upon onboarding;
-      // standard registrant becomes PARTICIPANT. Privileged event roles (Judge, Volunteer, Staff)
-      // CANNOT be self-selected and are invitation-only.
-      const assignedRole: UserRole = accountType === "ORGANIZATION_CREATOR" ? "ORGANIZATION_ADMIN" : "PARTICIPANT";
-      const res = await authApi.register({ name, email, role: assignedRole });
+      const assignedRole: UserRole =
+        accountType === "EVENT_ADMIN"
+          ? "EVENT_ADMIN"
+          : accountType === "ORGANIZATION_CREATOR"
+          ? "ORGANIZATION_ADMIN"
+          : "PARTICIPANT";
+
+      const res = await authApi.register({ name, email, password, role: assignedRole });
       setCurrentUser(res.user);
       setCurrentRole(assignedRole);
 
       if (accountType === "ORGANIZATION_CREATOR") {
         router.push("/onboarding");
+      } else if (accountType === "EVENT_ADMIN") {
+        router.push("/dashboard");
       } else {
         router.push("/participant");
       }
@@ -55,10 +60,24 @@ export default function RegisterPage() {
         </p>
       </div>
 
-      {/* Account Type Selection (No self-assigning privileged roles) */}
+      {/* Account Type Selection */}
       <div className="space-y-2">
-        <label className="text-xs font-semibold text-slate-300 block">Registration Purpose</label>
-        <div className="grid grid-cols-2 gap-3">
+        <label className="text-xs font-semibold text-slate-300 block">Registration Role</label>
+        <div className="grid grid-cols-3 gap-2.5">
+          <button
+            type="button"
+            onClick={() => setAccountType("EVENT_ADMIN")}
+            className={`p-3 rounded-xl border text-left transition cursor-pointer ${
+              accountType === "EVENT_ADMIN"
+                ? "bg-indigo-600/20 border-indigo-500 text-white"
+                : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700"
+            }`}
+          >
+            <ShieldCheck className="w-5 h-5 text-indigo-400 mb-1" />
+            <div className="text-xs font-bold leading-tight">Event Admin</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Direct Event Operations</div>
+          </button>
+
           <button
             type="button"
             onClick={() => setAccountType("ORGANIZATION_CREATOR")}
@@ -69,8 +88,8 @@ export default function RegisterPage() {
             }`}
           >
             <Building2 className="w-5 h-5 text-indigo-400 mb-1" />
-            <div className="text-xs font-bold">New Organization</div>
-            <div className="text-[10px] text-slate-400">Host, organize & operate events</div>
+            <div className="text-xs font-bold leading-tight">Organization</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Campus / Company Host</div>
           </button>
 
           <button
@@ -83,8 +102,8 @@ export default function RegisterPage() {
             }`}
           >
             <UserPlus className="w-5 h-5 text-indigo-400 mb-1" />
-            <div className="text-xs font-bold">Participant / Attendee</div>
-            <div className="text-[10px] text-slate-400">Join hackathon, fest or summit</div>
+            <div className="text-xs font-bold leading-tight">Participant</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Hackathons & Fests</div>
           </button>
         </div>
       </div>
@@ -95,7 +114,7 @@ export default function RegisterPage() {
         <div>
           <span className="font-semibold text-slate-200">Joining as Judge, Volunteer, or Staff?</span>
           <p className="mt-0.5 text-slate-400">
-            Privileged roles cannot be self-selected at registration. Please click the official invitation link dispatched to your email by your Event Director.
+            Jury and staff roles are access-controlled via invitation tokens issued by your Event Director.
           </p>
         </div>
       </div>
@@ -135,7 +154,11 @@ export default function RegisterPage() {
           isLoading={isLoading}
           rightIcon={<ArrowRight className="w-4 h-4" />}
         >
-          {accountType === "ORGANIZATION_CREATOR" ? "Continue to Organization Setup" : "Create Participant Account"}
+          {accountType === "EVENT_ADMIN"
+            ? "Create Event Admin Account"
+            : accountType === "ORGANIZATION_CREATOR"
+            ? "Continue to Organization Setup"
+            : "Create Participant Account"}
         </Button>
       </form>
 

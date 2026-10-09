@@ -73,4 +73,15 @@ export class AuthController {
       next(err);
     }
   }
+
+  public static async listUsers(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { db } = await import("../../database/connection");
+      const r = await db.query("SELECT id, name, email, role, organization_id, created_at FROM users ORDER BY created_at DESC");
+      return res.status(200).json(r.rows);
+    } catch (err: any) {
+      next(err);
+    }
+  }
 }
+
