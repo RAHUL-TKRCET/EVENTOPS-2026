@@ -45,3 +45,4 @@ analyticsRouter.get(
     res.status(200).json({ logs: inMemoryAuditLogs });
   }
 );
+

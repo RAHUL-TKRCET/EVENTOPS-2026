@@ -88,3 +88,4 @@ incidentsRouter.patch(
     res.status(200).json(inc);
   }
 );
+

@@ -147,3 +147,4 @@ export class EventsService {
     return this.update(id, { status });
   }
 }
+

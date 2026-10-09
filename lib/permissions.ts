@@ -186,25 +186,30 @@ export const ROUTE_ACCESS_RULES: { prefix: string; allowedRoles: UserRole[]; exa
     prefix: "/super-admin",
     allowedRoles: ["SUPER_ADMIN"],
   },
-  // Judge Portal
+  // Evaluations oversight for admins vs individual judge scoring terminal
   {
-    prefix: "/judge",
+    prefix: "/judge/teams",
     allowedRoles: ["JUDGE", "EVENT_ADMIN", "ORGANIZATION_ADMIN", "SUPER_ADMIN"],
   },
-  // Participant Portal
+  // Judge Portal (Dedicated Jury scoring terminal)
+  {
+    prefix: "/judge",
+    allowedRoles: ["JUDGE"],
+  },
+  // Participant Portal (Dedicated Hacker / Attendee terminal)
   {
     prefix: "/participant",
-    allowedRoles: ["PARTICIPANT", "EVENT_ADMIN", "ORGANIZATION_ADMIN", "SUPER_ADMIN"],
+    allowedRoles: ["PARTICIPANT"],
   },
-  // Technical Staff Portal
+  // Technical Staff Portal (Dedicated NetOps / Facilities terminal)
   {
     prefix: "/technical-staff",
-    allowedRoles: ["TECHNICAL_STAFF", "EVENT_ADMIN", "COORDINATOR", "ORGANIZATION_ADMIN", "SUPER_ADMIN"],
+    allowedRoles: ["TECHNICAL_STAFF"],
   },
-  // Resource Manager Portal
+  // Resource Manager Portal (Dedicated Kits & Catering terminal)
   {
     prefix: "/resource-manager",
-    allowedRoles: ["RESOURCE_MANAGER", "EVENT_ADMIN", "COORDINATOR", "ORGANIZATION_ADMIN", "SUPER_ADMIN"],
+    allowedRoles: ["RESOURCE_MANAGER"],
   },
   // Scanner is strictly forbidden for Participant
   {

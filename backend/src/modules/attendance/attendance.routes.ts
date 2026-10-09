@@ -19,3 +19,4 @@ attendanceRouter.get(
   authenticateJWT,
   AttendanceController.getTelemetry
 );
+

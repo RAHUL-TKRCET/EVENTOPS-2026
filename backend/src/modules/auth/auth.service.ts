@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { config } from "../../config";
 import { UserRole, AuthTokenPayload } from "../../types";
+import { db } from "../../database/connection";
 
 export interface UserRecord {
   id: string;
@@ -45,7 +46,25 @@ export class AuthService {
   }
 
   public static async login(email: string, password: string, requestedRole?: UserRole) {
-    const user = inMemoryUsers.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    // 1. Check PostgreSQL database first
+    const dbRes = await db.query("SELECT * FROM users WHERE LOWER(email) = LOWER($1)", [email]);
+    let user: UserRecord | undefined;
+
+    if (dbRes.rows.length > 0) {
+      const row = dbRes.rows[0];
+      user = {
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        passwordHash: row.password_hash,
+        role: row.role as UserRole,
+        organizationId: row.organization_id,
+        createdAt: row.created_at,
+      };
+    } else {
+      user = inMemoryUsers.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    }
+
     if (!user) {
       throw new Error("Invalid email or password");
     }
@@ -80,19 +99,41 @@ export class AuthService {
   }
 
   public static async register(data: { name: string; email: string; password: string; role?: UserRole; organizationId?: string }) {
+    // Check PostgreSQL first
+    const dbCheck = await db.query("SELECT id FROM users WHERE LOWER(email) = LOWER($1)", [data.email]);
+    if (dbCheck.rows.length > 0) {
+      throw new Error("An account with this email already exists in PostgreSQL database");
+    }
+
     const exists = inMemoryUsers.some((u) => u.email.toLowerCase() === data.email.toLowerCase());
     if (exists) {
       throw new Error("An account with this email already exists");
     }
 
     const passwordHash = await bcrypt.hash(data.password, 10);
+    const userId = `usr-${Date.now()}`;
+    const userRole = data.role || "PARTICIPANT";
+    const orgId = data.organizationId || "org-01";
+
+    // Insert directly into PostgreSQL database
+    try {
+      await db.query(
+        `INSERT INTO users (id, name, email, password_hash, role, organization_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+        [userId, data.name, data.email, passwordHash, userRole, orgId]
+      );
+      console.log(`[PostgreSQL] User '${data.email}' (${userRole}) registered and stored in database.`);
+    } catch (err: any) {
+      console.warn(`[PostgreSQL] User insert note:`, err.message);
+    }
+
     const newUser: UserRecord = {
-      id: `usr-${Date.now()}`,
+      id: userId,
       name: data.name,
       email: data.email,
       passwordHash,
-      role: data.role || "PARTICIPANT",
-      organizationId: data.organizationId || null,
+      role: userRole,
+      organizationId: orgId,
       createdAt: new Date().toISOString(),
     };
 
@@ -121,3 +162,4 @@ export class AuthService {
     return { valid: false, message: "Invitation token invalid or expired" };
   }
 }
+

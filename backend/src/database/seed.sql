@@ -106,3 +106,4 @@ VALUES
     ('res-3', 'evt-01', 'MEALS', 'Day 1 Dinner Meal Coupons', 500, 410, 'coupons'),
     ('res-4', 'evt-01', 'EQUIPMENT', 'ESP32-S3 AI Development Boards', 50, 28, 'boards')
 ON CONFLICT (id) DO NOTHING;
+

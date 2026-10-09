@@ -77,3 +77,4 @@ export interface AllocationSolveRequest {
   softConstraints: SoftConstraint[];
   solverTimeoutSeconds?: number;
 }
+

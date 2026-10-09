@@ -34,3 +34,4 @@ export function authenticateJWT(req: Request, res: Response, next: NextFunction)
     });
   }
 }
+

@@ -51,3 +51,4 @@ export const SwitchRoleSchema = z.object({
 export const VerifyInviteSchema = z.object({
   inviteCode: z.string().min(4, "Invite code required"),
 });
+

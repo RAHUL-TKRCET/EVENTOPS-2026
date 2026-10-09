@@ -36,3 +36,4 @@ export function auditLogger(req: Request, res: Response, next: NextFunction) {
 
   next();
 }
+

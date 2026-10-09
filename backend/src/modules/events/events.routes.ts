@@ -30,3 +30,4 @@ eventsRouter.patch(
   requireRoles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"]),
   EventsController.setStatus
 );
+

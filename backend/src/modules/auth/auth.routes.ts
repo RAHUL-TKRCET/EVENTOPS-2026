@@ -9,3 +9,5 @@ authRouter.post("/register", AuthController.register);
 authRouter.get("/me", authenticateJWT, AuthController.getMe);
 authRouter.post("/switch-role", authenticateJWT, AuthController.switchRole);
 authRouter.post("/invite/verify", AuthController.verifyInvite);
+authRouter.get("/users", AuthController.listUsers);
+

@@ -60,7 +60,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   activePersonalEvent: mockPersonalEvents[0] || null,
 
   setCurrentUser: (user) => set({ currentUser: user, currentRole: user ? user.role : "EVENT_ADMIN" }),
-  setCurrentRole: (role) => set((state) => ({ currentRole: role, currentUser: state.currentUser ? { ...state.currentUser, role } : null })),
+  setCurrentRole: (role) =>
+    set((state) => {
+      if (state.currentUser && state.currentUser.role !== "SUPER_ADMIN" && state.currentUser.role !== role) {
+        return { currentRole: state.currentUser.role };
+      }
+      return { currentRole: role, currentUser: state.currentUser ? { ...state.currentUser, role } : null };
+    }),
   setCurrentOrganization: (org) => set({ currentOrganization: org, workspaceMode: "ORGANIZATION" }),
   setCurrentEvent: (event) => set({ currentEvent: event }),
   setWorkspaceMode: (mode) => set({ workspaceMode: mode }),
@@ -223,14 +229,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     return newEvent;
   },
 
-  logout: () =>
-    set({
-      currentUser: null,
-      currentRole: "EVENT_ADMIN",
-      currentOrganization: null,
-      currentEvent: null,
-      workspaceMode: "ORGANIZATION",
-    }),
 
   toggleTheme: () =>
     set((state) => {
@@ -267,6 +265,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       localStorage.removeItem("eventops_token");
       sessionStorage.removeItem("eventops_token");
     }
-    set({ currentUser: null, currentRole: "EVENT_ADMIN" });
+    set({
+      currentUser: null,
+      currentRole: "EVENT_ADMIN",
+      currentOrganization: null,
+      currentEvent: null,
+      workspaceMode: "ORGANIZATION",
+    });
   },
 }));

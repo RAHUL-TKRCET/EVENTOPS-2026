@@ -50,3 +50,4 @@ evaluationRouter.get("/events/:eventId/leaderboard", authenticateJWT, (req: Requ
     next(err);
   }
 });
+

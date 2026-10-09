@@ -41,3 +41,4 @@ teamsRouter.patch("/:id/project", authenticateJWT, (req: Request, res: Response,
     next(err);
   }
 });
+
