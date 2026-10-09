@@ -3,6 +3,8 @@
 # dependencies
 node_modules/
 dist/
+data/
+backend/data/
 /node_modules
 /.pnp
 .pnp.*

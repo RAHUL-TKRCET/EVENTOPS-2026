@@ -3,8 +3,6 @@
 -- Universal SaaS (Organization Mode) & Independent Events (Personal Mode)
 -- ============================================================================
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- 1. Organizations (Tenants)
 CREATE TABLE IF NOT EXISTS organizations (
     id VARCHAR(64) PRIMARY KEY,
@@ -43,7 +41,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- 3. Organization Memberships (Multi-Tenant RBAC)
 CREATE TABLE IF NOT EXISTS organization_memberships (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     organization_id VARCHAR(64) NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     role VARCHAR(32) NOT NULL,
@@ -221,7 +219,7 @@ CREATE TABLE IF NOT EXISTS evaluations (
 
 -- 15. Attendance Audit & Hardware Scans
 CREATE TABLE IF NOT EXISTS attendance_records (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id VARCHAR(64) NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     team_id VARCHAR(64) NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
     member_id VARCHAR(64) REFERENCES team_members(id) ON DELETE SET NULL,
@@ -245,7 +243,7 @@ CREATE TABLE IF NOT EXISTS allocation_constraints (
 );
 
 CREATE TABLE IF NOT EXISTS allocation_results (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id VARCHAR(64) NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     round_id VARCHAR(64) REFERENCES rounds(id) ON DELETE CASCADE,
     allocation_matrix JSONB NOT NULL,
@@ -292,7 +290,7 @@ CREATE TABLE IF NOT EXISTS resources (
 );
 
 CREATE TABLE IF NOT EXISTS resource_distributions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id VARCHAR(64) NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     resource_id VARCHAR(64) NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
     team_id VARCHAR(64) REFERENCES teams(id) ON DELETE SET NULL,
@@ -320,7 +318,7 @@ CREATE TABLE IF NOT EXISTS incidents (
 
 -- 20. Platform Security Audit Log
 CREATE TABLE IF NOT EXISTS audit_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id VARCHAR(64),
     event_id VARCHAR(64),
     user_id VARCHAR(64),
@@ -344,3 +342,4 @@ CREATE INDEX IF NOT EXISTS idx_evaluations_round_team ON evaluations(round_id, t
 CREATE INDEX IF NOT EXISTS idx_attendance_event ON attendance_records(event_id);
 CREATE INDEX IF NOT EXISTS idx_incidents_event ON incidents(event_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_event ON audit_logs(event_id);
+

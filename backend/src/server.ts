@@ -11,8 +11,8 @@ async function bootstrap() {
   // Initialize Real-time WebSocket pub/sub engine
   realtime.init(server);
 
-  // Test optional database connectivity
-  await db.testConnection();
+  // Initialize resilient database engine (External PostgreSQL or Embedded PGlite)
+  await db.initDatabase();
 
   server.listen(config.port, () => {
     console.log("==================================================================");
@@ -30,3 +30,4 @@ bootstrap().catch((err) => {
   console.error("Fatal startup error:", err);
   process.exit(1);
 });
+
