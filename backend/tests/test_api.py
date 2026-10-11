@@ -89,6 +89,44 @@ def test_event_roster_is_not_public():
     assert response.status_code == 401
 
 
+def test_refresh_token_cannot_access_protected_endpoint():
+    """Refresh tokens must not be accepted as access tokens."""
+    login_res = client.post("/api/v1/auth/login", json={
+        "email": "eventadmin@eventops.demo",
+        "password": "EventOps@2026",
+        "role": "EVENT_ADMIN",
+    })
+    assert login_res.status_code == 200
+    refresh_token = login_res.json()["refreshToken"]
+    response = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {refresh_token}"},
+    )
+    assert response.status_code == 401
+
+
+def test_unassigned_user_cannot_read_event_details():
+    """A global account without an event roster assignment is denied event data."""
+    login_res = client.post("/api/v1/auth/login", json={
+        "email": "aarav.sharma@tkrcet.ac.in",
+        "password": "EventOps@2026",
+        "role": "PARTICIPANT",
+    })
+    assert login_res.status_code == 200
+    response = client.get(
+        "/api/v1/events/evt-01",
+        headers={"Authorization": f"Bearer {login_res.json()['accessToken']}"},
+    )
+    assert response.status_code == 403
+
+
+def test_legacy_invite_codes_are_disabled():
+    """Previously hard-coded invitation codes must no longer grant roles."""
+    response = client.post("/api/v1/auth/verify-invite", json={"inviteCode": "INV-ADMIN-2026"})
+    assert response.status_code == 200
+    assert response.json()["valid"] is False
+
+
 def test_rbac_protection():
     """Verify role-based authorization prevents privilege escalation."""
     # 1. Login as participant
