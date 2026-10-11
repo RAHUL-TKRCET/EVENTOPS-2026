@@ -83,7 +83,6 @@ def test_organization_registration_creates_new_scoped_owner():
         "password": "LongEnoughPassword123",
         "role": "ORGANIZATION_ADMIN",
         "organizationName": "New Test Organization",
-        "organizationId": "org-01",
     })
     assert response.status_code == 201
     data = response.json()
@@ -101,10 +100,7 @@ def test_participant_registration_cannot_join_existing_organization():
         "role": "PARTICIPANT",
         "organizationId": "org-01",
     })
-    assert response.status_code == 201
-    data = response.json()
-    assert data["user"]["role"] == "PARTICIPANT"
-    assert data["user"]["organizationId"] is None
+    assert response.status_code == 403
 
 
 def test_global_login_cannot_switch_super_admin_into_event_role():
