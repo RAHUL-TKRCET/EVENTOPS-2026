@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import generate_qr_token, verify_qr_token
 from app.core.events import manager as realtime_manager
-from app.models.entities import Team, TeamMember, AttendanceRecord, Venue, Bench, User, Event
+from app.models.entities import Team, TeamMember, AttendanceRecord, Venue, Bench, User, Event, Judge
 from app.api.deps import get_current_user
 from app.api.event_access import ensure_event_access, ensure_team_scope, get_event_or_404
 from app.schemas.entities import (
@@ -94,7 +94,14 @@ def list_teams(
             ).first()
         ]
     elif active_role == "JUDGE":
-        teams = [team for team in teams if current_user.id in (team.assigned_judges or [])]
+        judge = db.query(Judge).filter(
+            Judge.event_id == eventId,
+            Judge.email.ilike(current_user.email),
+        ).first()
+        if not judge:
+            teams = []
+        else:
+            teams = [team for team in teams if judge.id in (team.assigned_judges or [])]
     return [map_team_to_response(t, db) for t in teams]
 
 
