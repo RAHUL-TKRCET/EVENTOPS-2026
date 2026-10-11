@@ -247,6 +247,7 @@ def switch_active_role(
             db.query(OrganizationMembership)
             .filter(
                 OrganizationMembership.user_id == current_user.id,
+                OrganizationMembership.organization_id == current_user.organization_id,
                 OrganizationMembership.role == "ORGANIZATION_ADMIN",
                 OrganizationMembership.status == "ACTIVE",
             )
