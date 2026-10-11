@@ -31,6 +31,7 @@ export default function HomePage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [organizationName, setOrganizationName] = useState("");
   const [eventCode, setEventCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -42,7 +43,7 @@ export default function HomePage() {
 
     try {
       if (authMode === "LOGIN") {
-        const res = await authApi.login(email, password, "EVENT_ADMIN");
+        const res = await authApi.login(email, password, "ORGANIZATION_ADMIN");
         setCurrentUser(res.user);
         setCurrentRole("EVENT_ADMIN");
         router.push("/dashboard");
@@ -109,7 +110,7 @@ export default function HomePage() {
                     window.scrollTo({ top: 400, behavior: "smooth" });
                   }}
                 >
-                  Admin Sign In
+                  Organization Sign In
                 </Button>
                 <Button
                   variant="primary"
@@ -119,7 +120,7 @@ export default function HomePage() {
                     window.scrollTo({ top: 400, behavior: "smooth" });
                   }}
                 >
-                  Create Admin Account
+                  Register Organization
                 </Button>
               </div>
             )}
@@ -148,7 +149,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* Main Action Section: Event Admin Auth Card vs Already Logged In */}
+          {/* Main Action Section: Organization Admin Auth Card vs Already Logged In */}
           <div className="max-w-md mx-auto">
             {currentUser && currentUser.role === "EVENT_ADMIN" ? (
               <div className="p-8 rounded-3xl border border-blue-500/40 bg-white/[0.04] shadow-2xl backdrop-blur-md text-center space-y-4">
@@ -203,18 +204,18 @@ export default function HomePage() {
                         : "text-slate-400 hover:text-white"
                     }`}
                   >
-                    Create Main Account
+                    Create Organization Account
                   </button>
                 </div>
 
                 <div className="text-center space-y-1">
                   <h3 className="text-lg font-bold text-white font-mono">
-                    {authMode === "LOGIN" ? "Event Director Authentication" : "Register Event Admin Account"}
+                    {authMode === "LOGIN" ? "Organization Owner Authentication" : "Register Event Admin Account"}
                   </h3>
                   <p className="text-xs text-slate-400">
                     {authMode === "LOGIN"
                       ? "Sign into your verified Event Admin workspace to operate your events."
-                      : "Create your primary administrative identity to launch events and add staff."}
+                      : "Create your organization account, then create events and assign event-specific staff roles."}
                   </p>
                 </div>
 
@@ -226,13 +227,22 @@ export default function HomePage() {
 
                 <form onSubmit={handleAdminAuth} className="space-y-4">
                   {authMode === "REGISTER" && (
-                    <Input
-                      label="Full Legal / Director Name"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Rachel Dupont"
-                    />
+                    <>
+                      <Input
+                        label="Full Name"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="e.g. Rachel Dupont"
+                      />
+                      <Input
+                        label="Organization / Institution Name"
+                        required
+                        value={organizationName}
+                        onChange={(e) => setOrganizationName(e.target.value)}
+                        placeholder="e.g. TKR College of Engineering"
+                      />
+                    </>
                   )}
 
                   <Input
