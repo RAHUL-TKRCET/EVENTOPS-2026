@@ -9,10 +9,11 @@ if backend_dir not in sys.path:
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
-from app.core.database import Base, engine
+from app.core.database import Base, engine, SessionLocal
 from app.core.security import create_refresh_token
 from app.api.v1.websocket import can_subscribe_to_channel, validate_access_token
 from app.database.seed import seed_database
+from app.models.entities import EventMember
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -125,6 +126,32 @@ def test_event_login_rejects_unassigned_role():
         "role": "JUDGE",
     })
     assert response.status_code == 401
+
+
+def test_event_login_does_not_self_link_unassigned_roster():
+    """Valid credentials and a matching email must not claim an unlinked roster row."""
+    db = SessionLocal()
+    try:
+        db.add(EventMember(
+            id=f"em-unlinked-{uuid.uuid4().hex[:10]}",
+            event_id="evt-01",
+            user_id=None,
+            name="Aarav Sharma",
+            email="aarav.sharma@tkrcet.ac.in",
+            role="COORDINATOR",
+            status="ACTIVE",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post("/api/v1/auth/event-login", json={
+        "eventId": "evt-01",
+        "email": "aarav.sharma@tkrcet.ac.in",
+        "password": "EventOps@2026",
+        "role": "COORDINATOR",
+    })
+    assert response.status_code == 403
 
 
 def test_event_roster_is_not_public():
