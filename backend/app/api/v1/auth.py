@@ -268,8 +268,11 @@ def switch_active_role(
     }
 
     if payload.targetRole == "SUPER_ADMIN":
-        # Staying in the platform role does not grant an event role.
+        # Only the platform account's own global role is accepted.
+        if current_user.role != "SUPER_ADMIN":
+            raise HTTPException(status_code=403, detail="Platform administrator role is not assigned.")
         claims.pop("eventId", None)
+        claims["organizationId"] = current_user.organization_id
     elif payload.targetRole == "ORGANIZATION_ADMIN":
         if not payload.organizationId:
             raise HTTPException(status_code=400, detail="organizationId is required when switching organization scope.")
