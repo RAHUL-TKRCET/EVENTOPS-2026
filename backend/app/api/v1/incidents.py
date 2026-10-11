@@ -20,7 +20,7 @@ def list_incidents(
 ):
     """List operational incidents only for an authorized event member."""
     event = get_event_or_404(eventId, db)
-    ensure_event_access(event, current_user, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "VOLUNTEER", "TECHNICAL_STAFF"})
     incidents = db.query(Incident).filter(Incident.event_id == eventId).order_by(Incident.reported_at.desc()).all()
     return [
         {
