@@ -3,7 +3,7 @@ from typing import Optional, Set
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.entities import Event, EventMember, OrganizationMembership, Team, TeamMember, User
+from app.models.entities import Event, EventMember, Judge, OrganizationMembership, Team, TeamMember, User
 
 
 def ensure_event_access(
@@ -96,6 +96,14 @@ def ensure_team_scope(team: Team, user: User, db: Session) -> None:
         if team.lead_email.lower() != user.email.lower() and not membership:
             raise HTTPException(status_code=403, detail="Participants may only view their own team.")
     elif active_role == "JUDGE":
+        judge = (
+            db.query(Judge)
+            .filter(
+                Judge.event_id == event.id,
+                Judge.email.ilike(user.email),
+            )
+            .first()
+        )
         assigned_judges = team.assigned_judges or []
-        if user.id not in assigned_judges:
+        if not judge or judge.id not in assigned_judges:
             raise HTTPException(status_code=403, detail="Judges may only view teams assigned to them.")
