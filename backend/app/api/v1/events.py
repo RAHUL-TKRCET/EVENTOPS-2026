@@ -291,10 +291,11 @@ def update_event(
     db: Session = Depends(get_db),
     _user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"])),
 ):
-    """Update event properties."""
+    """Update only an event within the caller's authorized scope."""
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
+    ensure_event_access(event, _user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"})
 
     if payload.name is not None:
         event.name = payload.name
