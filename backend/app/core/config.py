@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     DB_HOST: str = Field(default="localhost", validation_alias="DB_HOST")
     DB_PORT: int = Field(default=5432, validation_alias="DB_PORT")
     DB_USER: str = Field(default="eventops_user", validation_alias="DB_USER")
-    DB_PASSWORD: str = Field(default="eventops_password", validation_alias="DB_PASSWORD")
+    DB_PASSWORD: str = Field(default="", validation_alias="DB_PASSWORD")
     DB_NAME: str = Field(default="eventops_db", validation_alias="DB_NAME")
 
     # Security & Tokens
