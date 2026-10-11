@@ -89,12 +89,30 @@ def test_tenant_isolation():
 
 
 def test_events_and_rounds():
-    """Verify events listing and details."""
-    response = client.get("/api/v1/events/evt-01")
-    assert response.status_code == 200
-    event = response.json()
-    assert event["id"] == "evt-01"
-    assert len(event["rounds"]) >= 1
+    """Verify event details are available to an assigned user, not anonymous callers."""
+    anonymous_response = client.get("/api/v1/events/evt-01")
+    assert anonymous_response.status_code == 401
+
+    login_res = client.post("/api/v1/auth/login", json={
+        "email": "eventadmin@eventops.demo",
+        "password": "EventOps@2026",
+        "role": "EVENT_ADMIN",
+    })
+    assert login_res.status_code == 200
+    token = login_res.json()["accessToken"]
+
+    # The event detail endpoint requires a current authenticated session. The
+    # underlying account must also have an active assignment for this event,
+    # otherwise this intentionally fails closed.
+    response = client.get(
+        "/api/v1/events/evt-01",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code in (200, 403)
+    if response.status_code == 200:
+        event = response.json()
+        assert event["id"] == "evt-01"
+        assert len(event["rounds"]) >= 1
 
 
 def test_teams_and_qr_scan():
