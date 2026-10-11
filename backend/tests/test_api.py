@@ -128,6 +128,90 @@ def test_event_login_rejects_unassigned_role():
     assert response.status_code == 401
 
 
+def test_event_invitation_lifecycle_is_scoped_and_single_use():
+    """An authorized event admin can issue and redeem a one-time event-scoped invite."""
+    admin_login = client.post("/api/v1/auth/login", json={
+        "email": "eventadmin@eventops.demo",
+        "password": "EventOps@2026",
+        "role": "EVENT_ADMIN",
+    })
+    assert admin_login.status_code == 200
+    admin_headers = {"Authorization": f"Bearer {admin_login.json()['accessToken']}"}
+
+    email = f"invited-coordinator-{uuid.uuid4().hex}@example.com"
+    created = client.post(
+        "/api/v1/auth/invitations",
+        headers=admin_headers,
+        json={
+            "eventId": "evt-01",
+            "email": email,
+            "role": "COORDINATOR",
+            "expiresInHours": 24,
+        },
+    )
+    assert created.status_code == 201
+    invite = created.json()
+    raw_token = invite["invitationToken"]
+    assert len(raw_token) >= 32
+    assert invite["eventId"] == "evt-01"
+    assert invite["role"] == "COORDINATOR"
+
+    verified = client.post("/api/v1/auth/verify-invite", json={"inviteCode": raw_token})
+    assert verified.status_code == 200
+    assert verified.json()["valid"] is True
+    assert verified.json()["eventId"] == "evt-01"
+
+    redeemed = client.post(
+        "/api/v1/auth/event-invitations/redeem",
+        json={
+            "invitationToken": raw_token,
+            "name": "Invited Coordinator",
+            "password": "SecureInvitePassword!2026",
+        },
+    )
+    assert redeemed.status_code == 200
+    assert redeemed.json()["user"]["email"] == email
+    assert redeemed.json()["user"]["role"] == "COORDINATOR"
+
+    second_redeem = client.post(
+        "/api/v1/auth/event-invitations/redeem",
+        json={
+            "invitationToken": raw_token,
+            "name": "Another Account",
+            "password": "SecureInvitePassword!2026",
+        },
+    )
+    assert second_redeem.status_code == 400
+
+    event_login = client.post("/api/v1/auth/event-login", json={
+        "eventId": "evt-01",
+        "email": email,
+        "password": "SecureInvitePassword!2026",
+        "role": "COORDINATOR",
+    })
+    assert event_login.status_code == 200
+
+
+def test_participant_cannot_issue_event_invitations():
+    """Invitation issuance is limited to authorized event-management roles."""
+    participant_login = client.post("/api/v1/auth/login", json={
+        "email": "aarav.sharma@tkrcet.ac.in",
+        "password": "EventOps@2026",
+        "role": "PARTICIPANT",
+    })
+    assert participant_login.status_code == 200
+    response = client.post(
+        "/api/v1/auth/invitations",
+        headers={"Authorization": f"Bearer {participant_login.json()['accessToken']}"},
+        json={
+            "eventId": "evt-01",
+            "email": f"unapproved-{uuid.uuid4().hex}@example.com",
+            "role": "JUDGE",
+        },
+    )
+    assert response.status_code == 403
+
+
 def test_event_login_does_not_self_link_unassigned_roster():
     """Valid credentials and a matching email must not claim an unlinked roster row."""
     db = SessionLocal()
