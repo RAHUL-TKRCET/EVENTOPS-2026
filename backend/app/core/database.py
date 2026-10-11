@@ -20,14 +20,20 @@ def resolve_database_url() -> str:
     raw_url = settings.DATABASE_URL
 
     if raw_url and raw_url.startswith("postgres://"):
-        raw_url = raw_url.replace("postgres://", "postgresql://", 1)
+        raw_url = raw_url.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif raw_url and raw_url.startswith("postgresql://"):
+        # The project installs psycopg2-binary, not Psycopg 3.
+        raw_url = raw_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    elif raw_url and raw_url.startswith("postgresql+psycopg://"):
+        # Normalize explicit Psycopg 3 URLs to the installed Psycopg 2 driver.
+        raw_url = raw_url.replace("postgresql+psycopg://", "postgresql+psycopg2://", 1)
 
     if raw_url:
         return raw_url
 
     # Check constructed PostgreSQL URI if DB_HOST is configured
     if settings.DB_HOST != "localhost" or os.environ.get("DB_HOST"):
-        pg_url = f"postgresql://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
+        pg_url = f"postgresql+psycopg2://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
         return pg_url
 
     # Local development & fallback persistent SQLite storage
