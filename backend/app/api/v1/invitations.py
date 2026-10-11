@@ -84,7 +84,7 @@ class InvitationVerifyResponse(BaseModel):
 
 class InvitationAcceptRequest(BaseModel):
     token: str = Field(min_length=20, max_length=512)
-    name: str = Field(min_length=2, max_length=255)
+    name: Optional[str] = Field(default=None, min_length=2, max_length=255)
     password: Optional[str] = Field(default=None, min_length=8, max_length=128)
 
 
@@ -159,8 +159,11 @@ def _summary(invitation: Invitation) -> InvitationSummary:
     )
 
 
-def _pending_invitation(db: Session, token: str) -> Invitation:
-    invitation = db.query(Invitation).filter(Invitation.token_hash == _token_hash(token)).first()
+def _pending_invitation(db: Session, token: str, for_update: bool = False) -> Invitation:
+    query = db.query(Invitation).filter(Invitation.token_hash == _token_hash(token))
+    if for_update:
+        query = query.with_for_update()
+    invitation = query.first()
     if not invitation:
         raise HTTPException(status_code=404, detail="Invitation is invalid or unavailable.")
     if invitation.status != "PENDING":
@@ -213,8 +216,8 @@ def create_invitation(
         raise HTTPException(status_code=409, detail="Invitation could not be created because of a conflicting record.") from exc
     db.refresh(invitation)
     # Email delivery is deliberately not claimed. UI can copy the returned token/link.
-    acceptance_url = f"{settings.CLIENT_ORIGIN.rstrip('/')}/invite?token={token}"
-    return InvitationCreated(**_summary(invitation).model_dump(), token=token, acceptanceUrl=acceptance_url)
+    # The shared invitation UI route has not shipped; return no misleading URL.
+    return InvitationCreated(**_summary(invitation).model_dump(), token=token, acceptanceUrl=None)
 
 
 @router.get("", response_model=list[InvitationSummary])
@@ -278,7 +281,7 @@ def accept_invitation(
     payload: InvitationAcceptRequest,
     db: Session = Depends(get_db),
 ):
-    invitation = _pending_invitation(db, payload.token)
+    invitation = _pending_invitation(db, payload.token, for_update=True)
     event = db.query(Event).filter(Event.id == invitation.event_id).with_for_update().first()
     if not event or event.organization_id != invitation.organization_id or invitation.role not in INVITABLE_ROLES:
         db.rollback()
@@ -290,6 +293,8 @@ def accept_invitation(
     if user is None:
         if not payload.password:
             raise HTTPException(status_code=422, detail="A password of at least 8 characters is required to create an account.")
+        if not payload.name or len(payload.name.strip()) < 2:
+            raise HTTPException(status_code=422, detail="A name of at least 2 characters is required to create an account.")
         user = User(
             id=f"usr-{uuid.uuid4().hex[:12]}",
             name=payload.name.strip(),
