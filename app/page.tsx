@@ -496,7 +496,7 @@ export default function HomePage() {
                     <Input label="Email address" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@organization.org" />
                     <Input label="Password" type="password" required autoComplete={authMode === "REGISTER" ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" />
                     <Button type="submit" variant="primary" size="lg" className="w-full" isLoading={isLoading} rightIcon={<ArrowRight className="h-4 w-4" />}>
-                      {isLoading ? "Please wait…" : authMode === "REGISTER" ? "Create Super Admin & continue" : "Sign in to Super Admin"}
+                      {isLoading ? "Please wait…" : authMode === "REGISTER" ? "Create Super Admin & continue" : "Sign in to your workspace"}
                     </Button>
                   </form>
 
