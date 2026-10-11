@@ -180,12 +180,61 @@ def map_event_to_response(event: Event, db: Session) -> EventResponse:
 def list_events(
     organization_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    _tenant_user: Optional[User] = Depends(get_current_tenant_user),
+    current_user: User = Depends(get_current_user),
 ):
-    """List events matching tenant isolation boundaries."""
+    """List only events reachable through the authenticated user's current scope."""
+    active_role = getattr(current_user, "active_role", current_user.role)
+    active_event_id = getattr(current_user, "active_event_id", None)
+    active_org_id = getattr(current_user, "active_organization_id", None) or current_user.organization_id
+
     query = db.query(Event)
-    if organization_id and organization_id not in ("null", "undefined"):
-        query = query.filter(Event.organization_id == organization_id)
+    requested_org = organization_id if organization_id and organization_id not in ("null", "undefined") else None
+
+    if active_role == "SUPER_ADMIN" and not active_event_id:
+        if requested_org:
+            query = query.filter(Event.organization_id == requested_org)
+    elif active_event_id:
+        if requested_org and requested_org != active_org_id:
+            raise HTTPException(status_code=403, detail="Cross-Tenant Violation: requested organization is outside this event session.")
+        query = query.filter(Event.id == active_event_id)
+    elif active_role == "ORGANIZATION_ADMIN":
+        if not active_org_id:
+            raise HTTPException(status_code=403, detail="An authorized organization context is required.")
+        if requested_org and requested_org != active_org_id:
+            membership = db.query(OrganizationMembership).filter(
+                OrganizationMembership.user_id == current_user.id,
+                OrganizationMembership.organization_id == requested_org,
+                OrganizationMembership.role == "ORGANIZATION_ADMIN",
+                OrganizationMembership.status == "ACTIVE",
+            ).first()
+            if not membership:
+                raise HTTPException(status_code=403, detail="Cross-Tenant Violation: requested organization is outside your membership.")
+            active_org_id = requested_org
+        query = query.filter(Event.organization_id == active_org_id)
+    else:
+        assigned_event_ids = [
+            row.event_id
+            for row in db.query(EventMember.event_id).filter(
+                EventMember.user_id == current_user.id,
+                EventMember.role == active_role,
+                EventMember.status == "ACTIVE",
+            ).all()
+        ]
+        owned_event_ids = [
+            row.id for row in db.query(Event.id).filter(Event.owner_id == current_user.id).all()
+        ]
+        allowed_ids = set(assigned_event_ids + owned_event_ids)
+        if requested_org:
+            # Event-level users cannot use a query parameter to move into a
+            # different organization. Verify each candidate remains assigned.
+            candidate_ids = [
+                row.id for row in db.query(Event.id).filter(Event.organization_id == requested_org).all()
+            ]
+            if not allowed_ids.intersection(candidate_ids):
+                raise HTTPException(status_code=403, detail="Cross-Tenant Violation: no event assignment exists in that organization.")
+            allowed_ids.intersection_update(candidate_ids)
+        query = query.filter(Event.id.in_(allowed_ids)) if allowed_ids else query.filter(Event.id == "__no_authorized_event__")
+
     events = query.all()
     return [map_event_to_response(e, db) for e in events]
 
