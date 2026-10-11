@@ -13,9 +13,12 @@ class ConnectionManager:
         # Map websocket -> user context metadata
         self.connection_metadata: Dict[WebSocket, Dict[str, Any]] = {}
 
-    async def connect(self, websocket: WebSocket, user_info: Dict[str, Any]):
-        await websocket.accept()
-        self.active_connections[websocket] = set(["events:global:announcements"])
+    async def connect(self, websocket: WebSocket, user_info: Dict[str, Any], accept: bool = True):
+        if accept:
+            await websocket.accept()
+        # No channels are subscribed by default. Each channel requires an explicit
+        # authorization check in the WebSocket endpoint.
+        self.active_connections[websocket] = set()
         self.connection_metadata[websocket] = user_info
         logger.info("WebSocket connected for user %s (%s)", user_info.get("email"), user_info.get("role"))
 
