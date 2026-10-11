@@ -177,6 +177,7 @@ export const authApi = {
     password?: string;
     role?: UserRole;
     organizationId?: string;
+    organizationName?: string;
   }): Promise<{ user: User; token: string }> {
     const res = await apiRequest<AuthResponse>("/auth/register", {
       method: "POST",
@@ -185,7 +186,8 @@ export const authApi = {
         email: data.email.trim().toLowerCase(),
         password: data.password || "Password@2026",
         role: data.role || "PARTICIPANT",
-        organizationId: data.organizationId || "org-01",
+        ...(data.organizationId ? { organizationId: data.organizationId } : {}),
+        ...(data.organizationName ? { organizationName: data.organizationName.trim() } : {}),
       }),
     });
 
