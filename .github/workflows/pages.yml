@@ -38,7 +38,7 @@ jobs:
       - name: Build Next.js Static Export
         env:
           NEXT_PUBLIC_BASE_PATH: "/EVENTOPS-2026"
-          NEXT_PUBLIC_API_BASE_URL: "http://localhost:5000/api/v1"
+          NEXT_PUBLIC_API_BASE_URL: "https://eventops-2026-6fecaa15.fastapicloud.dev/api/v1"
         run: npm run build
 
       - name: Upload Artifact
