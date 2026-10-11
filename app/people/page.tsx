@@ -45,6 +45,7 @@ function readableRole(role: string): string {
 
 export default function PeoplePage() {
   const router = useRouter();
+  const requestedEventId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("eventId") : null;
   const [events, setEvents] = useState<EventItem[]>([]);
   const [eventId, setEventId] = useState("");
   const [members, setMembers] = useState<EventMemberRecord[]>([]);
@@ -68,7 +69,7 @@ export default function PeoplePage() {
     try {
       const result = await eventsApi.getAll();
       setEvents(result);
-      setEventId((current) => current && result.some((item) => item.id === current) ? current : (result[0]?.id || ""));
+      setEventId((current) => current && result.some((item) => item.id === current) ? current : (requestedEventId && result.some((item) => item.id === requestedEventId) ? requestedEventId : (result[0]?.id || "")));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unable to load events for your authorized organization.");
     } finally {
