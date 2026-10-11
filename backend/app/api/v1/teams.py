@@ -120,9 +120,20 @@ def get_team(
 
 
 @router.post("", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)
-def register_team(payload: TeamCreate, db: Session = Depends(get_db)):
-    """Allow team registration only for an existing event that is accepting registrations."""
+def register_team(
+    payload: TeamCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Allow team registration only for an assigned participant or event manager."""
     event = get_event_or_404(payload.eventId, db)
+    active_role = getattr(current_user, "active_role", current_user.role)
+    if active_role == "PARTICIPANT":
+        if payload.leadEmail.strip().lower() != current_user.email.lower():
+            raise HTTPException(status_code=403, detail="Participants may only register a team under their own authenticated email.")
+        ensure_event_access(event, current_user, db, required_roles={"PARTICIPANT"})
+    else:
+        ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR"})
     if event.status not in ("LIVE", "UPCOMING", "REGISTRATION_OPEN"):
         raise HTTPException(status_code=403, detail="This event is not accepting team registrations.")
     deadline = event.registration_deadline
