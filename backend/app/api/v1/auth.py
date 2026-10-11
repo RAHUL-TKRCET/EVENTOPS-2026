@@ -2,6 +2,7 @@ import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token
 from app.models.entities import User, OrganizationMembership, Organization, EventMember
@@ -138,34 +139,109 @@ def event_login(payload: EventLoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
-    """Register a new user account."""
-    existing = db.query(User).filter(User.email.ilike(payload.email)).first()
+    """Register a participant, or atomically create an organization and its owner."""
+    normalized_email = payload.email.strip().lower()
+    existing = db.query(User).filter(User.email.ilike(normalized_email)).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="An account with this email address already exists.",
         )
 
-    new_user = User(
-        id=f"usr-{uuid.uuid4().hex[:8]}",
-        name=payload.name,
-        email=payload.email.lower(),
-        password_hash=get_password_hash(payload.password),
-        role=payload.role or "PARTICIPANT",
-        organization_id=payload.organizationId,
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    requested_role = payload.role or "PARTICIPANT"
+    if requested_role not in {"PARTICIPANT", "ORGANIZATION_ADMIN"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This role cannot be self-assigned during public registration. Use an event invitation or an administrator-provisioned account.",
+        )
 
-    claims = {
-        "email": new_user.email,
-        "role": new_user.role,
-        "organizationId": new_user.organization_id,
-        "name": new_user.name,
-    }
-    access_token = create_access_token(subject=new_user.id, claims=claims)
-    refresh_token = create_refresh_token(subject=new_user.id)
+    organization_name = (payload.organizationName or "").strip()
+    if requested_role == "ORGANIZATION_ADMIN":
+        if len(organization_name) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="organizationName is required when creating an organization administrator account.",
+            )
+        if payload.organizationId:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Public organization registration must create a new organization; an existing organization cannot be selected.",
+            )
+    elif payload.organizationId:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An organization cannot be selected directly during public participant registration. Use the relevant event invitation or joining flow.",
+        )
+
+    user_id = f"usr-{uuid.uuid4().hex[:12]}"
+    organization_id = None
+    new_user = User(
+        id=user_id,
+        name=payload.name.strip(),
+        email=normalized_email,
+        password_hash=get_password_hash(payload.password),
+        role=requested_role,
+        organization_id=None,
+    )
+
+    try:
+        if requested_role == "ORGANIZATION_ADMIN":
+            # The existing schema requires country and city. These neutral values
+            # are placeholders until the owner completes organization settings.
+            organization = Organization(
+                id=f"org-{uuid.uuid4().hex[:12]}",
+                name=organization_name,
+                type="Organization",
+                country="Not specified",
+                city="Not specified",
+                owner_id=user_id,
+                contact_email=normalized_email,
+                plan="Starter",
+            )
+            db.add(organization)
+            db.flush()
+            organization_id = organization.id
+            new_user.organization_id = organization_id
+
+        db.add(new_user)
+        db.flush()
+
+        if organization_id:
+            db.add(OrganizationMembership(
+                user_id=new_user.id,
+                organization_id=organization_id,
+                role="ORGANIZATION_ADMIN",
+                status="ACTIVE",
+            ))
+
+        claims = {
+            "email": new_user.email,
+            "role": new_user.role,
+            "organizationId": organization_id,
+            "name": new_user.name,
+        }
+        access_token = create_access_token(subject=new_user.id, claims=claims)
+        refresh_token = create_refresh_token(subject=new_user.id)
+
+        # One transaction covers organization + owner + membership. A failure
+        # must not leave a partial organization or orphaned administrator.
+        db.commit()
+        db.refresh(new_user)
+    except IntegrityError as exc:
+        db.rollback()
+        existing = db.query(User).filter(User.email.ilike(normalized_email)).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="An account with this email address already exists.",
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Registration could not be completed because of a data conflict. Please try again.",
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
 
     return TokenResponse(
         user=UserResponse(
