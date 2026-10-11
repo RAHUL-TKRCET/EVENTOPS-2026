@@ -65,6 +65,15 @@ def get_current_user(
         user.active_role = token_role
         user.active_event_id = token_event_id
         user.active_organization_id = token_org_id or user.organization_id
+    elif token_role == "SUPER_ADMIN":
+        if user.role != "SUPER_ADMIN":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This account is not authorized for the platform administrator role.",
+            )
+        user.active_role = "SUPER_ADMIN"
+        user.active_event_id = None
+        user.active_organization_id = None
     elif token_role == "ORGANIZATION_ADMIN":
         membership = (
             db.query(OrganizationMembership)
