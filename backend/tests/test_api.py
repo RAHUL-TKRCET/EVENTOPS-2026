@@ -9,6 +9,16 @@ if backend_dir not in sys.path:
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
+from app.core.database import Base, engine
+from app.database.seed import seed_database
+
+
+@pytest.fixture(scope="session", autouse=True)
+def initialize_test_database():
+    """Create a clean test schema and deterministic demo fixtures before requests."""
+    Base.metadata.create_all(bind=engine)
+    seed_database()
+
 
 client = TestClient(app)
 
