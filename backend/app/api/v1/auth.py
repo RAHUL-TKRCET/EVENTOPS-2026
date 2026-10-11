@@ -147,32 +147,26 @@ def event_login(payload: EventLoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
-    """Register a new user account."""
+    """Register a participant or create a fresh organization and its initial owner."""
     existing = db.query(User).filter(User.email.ilike(payload.email)).first()
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An account with this email address already exists.",
-        )
+        raise HTTPException(status_code=400, detail="An account with this email address already exists.")
 
-    # Self-registration may create either a participant account or a new
-    # organization with its first owner. It can never attach an account to an
-    # existing organization or assign an event/platform role.
+    if payload.organizationId:
+        raise HTTPException(status_code=403, detail="Public registration cannot attach to an existing organization.")
     if payload.role not in (None, "PARTICIPANT", "ORGANIZATION_ADMIN"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Self-registration only supports participant or new-organization owner accounts.",
-        )
+        raise HTTPException(status_code=403, detail="Self-registration only supports participant or new-organization owner accounts.")
 
     user_id = f"usr-{uuid.uuid4().hex[:8]}"
     organization_id = None
-    organization = None
     target_role = "PARTICIPANT"
 
     if payload.role == "ORGANIZATION_ADMIN":
         organization_id = f"org-{uuid.uuid4().hex[:8]}"
-        organization_name = (payload.organizationName or "").strip() or f"{payload.name}'s Organization"
-        organization = Organization(
+        organization_name = (payload.organizationName or "").strip()
+        if not organization_name:
+            raise HTTPException(status_code=400, detail="organizationName is required for organization-owner registration.")
+        db.add(Organization(
             id=organization_id,
             name=organization_name,
             type="Organization",
@@ -181,9 +175,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
             owner_id=user_id,
             contact_email=payload.email.lower(),
             plan="Starter",
-        )
+        ))
         target_role = "ORGANIZATION_ADMIN"
-        db.add(organization)
 
     new_user = User(
         id=user_id,
@@ -194,19 +187,21 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         organization_id=organization_id,
     )
     db.add(new_user)
-
     if organization_id:
-        db.add(
-            OrganizationMembership(
-                user_id=user_id,
-                organization_id=organization_id,
-                role="ORGANIZATION_ADMIN",
-                status="ACTIVE",
-            )
-        )
+        db.add(OrganizationMembership(
+            id=f"mem-{uuid.uuid4().hex[:12]}",
+            user_id=user_id,
+            organization_id=organization_id,
+            role="ORGANIZATION_ADMIN",
+            status="ACTIVE",
+        ))
 
-    db.commit()
-    db.refresh(new_user)
+    try:
+        db.commit()
+        db.refresh(new_user)
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Account registration failed. Please retry.")
 
     claims = {
         "email": new_user.email,
@@ -216,7 +211,6 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     }
     access_token = create_access_token(subject=new_user.id, claims=claims)
     refresh_token = create_refresh_token(subject=new_user.id)
-
     return TokenResponse(
         user=UserResponse(
             id=new_user.id,
