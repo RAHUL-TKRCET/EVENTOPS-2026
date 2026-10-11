@@ -174,18 +174,18 @@ export const authApi = {
   async register(data: {
     name: string;
     email: string;
-    password?: string;
+    password: string;
     role?: UserRole;
-    organizationId?: string;
+    organizationName?: string;
   }): Promise<{ user: User; token: string }> {
     const res = await apiRequest<AuthResponse>("/auth/register", {
       method: "POST",
       body: JSON.stringify({
         name: data.name,
         email: data.email.trim().toLowerCase(),
-        password: data.password || "Password@2026",
+        password: data.password,
         role: data.role || "PARTICIPANT",
-        organizationId: data.organizationId || "org-01",
+        organizationName: data.organizationName,
       }),
     });
 
