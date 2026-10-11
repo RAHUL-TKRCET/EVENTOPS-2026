@@ -176,16 +176,16 @@ async def websocket_endpoint(
             return
 
     await manager.connect(websocket, user_claims, accept=False)
-    await websocket.send_text(json.dumps({
-        "type": "CONNECTED",
-        "message": "Authenticated session established with EVENTOPS Real-Time Engine.",
-        "user": user_claims.get("email"),
-        "role": user_claims.get("role"),
-        "eventId": user_claims.get("eventId"),
-        "subscribedChannels": [],
-    }))
-
     try:
+        await websocket.send_text(json.dumps({
+            "type": "CONNECTED",
+            "message": "Authenticated session established with EVENTOPS Real-Time Engine.",
+            "user": user_claims.get("email"),
+            "role": user_claims.get("role"),
+            "eventId": user_claims.get("eventId"),
+            "subscribedChannels": [],
+        }))
+
         while True:
             data = await websocket.receive_text()
             try:
@@ -215,5 +215,8 @@ async def websocket_endpoint(
             except json.JSONDecodeError:
                 await websocket.send_text(json.dumps({"type": "ERROR", "message": "Invalid JSON frame."}))
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
         logger.info("WebSocket disconnected.")
+    finally:
+        # Ensure registered connections and channel memberships are removed even
+        # if an unexpected send/receive/subscription error occurs.
+        manager.disconnect(websocket)
