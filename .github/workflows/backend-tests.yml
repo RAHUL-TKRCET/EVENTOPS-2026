@@ -6,11 +6,13 @@ on:
     paths:
       - "backend/**"
       - ".github/workflows/backend-tests.yml"
+      - "supabase/**"
   push:
     branches: [main]
     paths:
       - "backend/**"
       - ".github/workflows/backend-tests.yml"
+      - "supabase/**"
   workflow_dispatch:
 
 permissions:
@@ -46,3 +48,69 @@ jobs:
 
       - name: Run backend tests
         run: uv run --project backend --group dev pytest backend/tests -q
+
+
+  postgres-integration:
+    name: PostgreSQL backend and RLS proposal tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: eventops_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d eventops_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      ENVIRONMENT: test
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/eventops_test
+      JWT_SECRET: eventops-ci-jwt-secret-should-never-be-used-in-production-2026
+      QR_HMAC_SECRET: eventops-ci-qr-secret-should-never-be-used-in-production-2026
+      PGPASSWORD: postgres
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install backend dependencies
+        run: uv sync --project backend --group dev
+
+      - name: Run backend tests against PostgreSQL
+        run: uv run --project backend --group dev pytest backend/tests -q
+
+      - name: Prepare Supabase-style API roles in isolated PostgreSQL
+        run: |
+          psql "postgresql://postgres:postgres@localhost:5432/eventops_test" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $roles$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+              CREATE ROLE anon NOLOGIN;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+              CREATE ROLE authenticated NOLOGIN;
+            END IF;
+          END
+          $roles$;
+          SQL
+
+      - name: Create invitation table in isolated database
+        run: psql "postgresql://postgres:postgres@localhost:5432/eventops_test" -v ON_ERROR_STOP=1 -f supabase/security/event_invitations_schema_proposal.sql
+
+      - name: Apply default-deny proposal in isolated database only
+        run: psql "postgresql://postgres:postgres@localhost:5432/eventops_test" -v ON_ERROR_STOP=1 -f supabase/security/rls_default_deny_proposal.sql
+
+      - name: Assert RLS and direct API privileges
+        run: psql "postgresql://postgres:postgres@localhost:5432/eventops_test" -v ON_ERROR_STOP=1 -f supabase/tests/rls_privilege_gate.assertions.sql
