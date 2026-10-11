@@ -4,7 +4,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import decode_token
-from app.models.entities import User, OrganizationMembership, EventMember
+from app.models.entities import User, OrganizationMembership, EventMember, Event
 
 security = HTTPBearer(auto_error=False)
 
@@ -62,7 +62,7 @@ def get_current_user(
         if token_org_id and user.organization_id and token_org_id != user.organization_id:
             # Event membership is the source of event scope; the user's default organization
             # field is not proof of membership in the event's organization.
-            event = db.query(__import__("app.models.entities", fromlist=["Event"]).Event).filter_by(id=token_event_id).first()
+            event = db.query(Event).filter_by(id=token_event_id).first()
             if not event or event.organization_id != token_org_id:
                 raise HTTPException(status_code=403, detail="The event token organization scope does not match the event.")
         user.active_role = token_role
