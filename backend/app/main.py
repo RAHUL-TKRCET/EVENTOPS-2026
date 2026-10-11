@@ -25,10 +25,14 @@ startup_timestamp = time.time()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: ensure tables exist and base seed dataset is initialized
+    # Startup creates missing tables but never repopulates a deliberately cleared
+    # database unless a deploy explicitly opts into demo fixtures.
     print("[EVENTOPS Backend] Initializing database models and tables...")
     Base.metadata.create_all(bind=engine)
-    seed_database()
+    if settings.SEED_DEMO_DATA:
+        seed_database()
+    else:
+        print("[EVENTOPS Backend] Demo seeding is disabled (SEED_DEMO_DATA=false).")
     print(f"[EVENTOPS Backend] Server online. Listening on port {settings.PORT}.")
     yield
     # Shutdown
@@ -45,13 +49,19 @@ app = FastAPI(
     openapi_url="/api/v1/openapi.json",
 )
 
-# Cross-Origin Resource Sharing (CORS)
-cors_origins = list(set([
-    settings.CLIENT_ORIGIN,
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://rahul-tkrcet.github.io",
-]))
+# Cross-Origin Resource Sharing (CORS). Normalize configured origins so a
+# trailing slash in deployment settings does not break browser preflight checks.
+cors_origins = sorted({
+    origin.strip().rstrip("/")
+    for origin in [
+        settings.CLIENT_ORIGIN,
+        *settings.ALLOWED_ORIGINS,
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://rahul-tkrcet.github.io",
+    ]
+    if origin and origin.strip()
+})
 
 app.add_middleware(
     CORSMiddleware,

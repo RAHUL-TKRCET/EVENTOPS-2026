@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     PORT: int = Field(default=5000, validation_alias="PORT")
     ENVIRONMENT: str = Field(default="development", validation_alias="NODE_ENV")
+    SEED_DEMO_DATA: bool = Field(default=False, validation_alias="SEED_DEMO_DATA")
 
     # Database
     DATABASE_URL: Optional[str] = Field(default=None, validation_alias="DATABASE_URL")

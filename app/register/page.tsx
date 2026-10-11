@@ -7,171 +7,96 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { authApi } from "@/lib/api/auth";
 import { useAppStore } from "@/store";
-import { ArrowRight, ShieldCheck, Mail, Building2, UserPlus, Info } from "lucide-react";
-import { UserRole } from "@/types";
+import { ArrowRight, Building2, UserPlus, Info } from "lucide-react";
+
+type AccountType = "ORGANIZATION_CREATOR" | "PARTICIPANT";
 
 export default function RegisterPage() {
   const router = useRouter();
   const { setCurrentUser, setCurrentRole } = useAppStore();
   const [name, setName] = useState("");
+  const [organizationName, setOrganizationName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [accountType, setAccountType] = useState<"EVENT_ADMIN" | "ORGANIZATION_CREATOR" | "PARTICIPANT">("EVENT_ADMIN");
+  const [accountType, setAccountType] = useState<AccountType>("ORGANIZATION_CREATOR");
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMsg(null);
     try {
-      const assignedRole: UserRole =
-        accountType === "EVENT_ADMIN"
-          ? "EVENT_ADMIN"
-          : accountType === "ORGANIZATION_CREATOR"
-          ? "ORGANIZATION_ADMIN"
-          : "PARTICIPANT";
-
-      const res = await authApi.register({ name, email, password, role: assignedRole });
+      const isOrganizationOwner = accountType === "ORGANIZATION_CREATOR";
+      const role = isOrganizationOwner ? "ORGANIZATION_ADMIN" : "PARTICIPANT";
+      const res = await authApi.register({
+        name,
+        email,
+        password,
+        role,
+        ...(isOrganizationOwner ? { organizationName } : {}),
+      });
       setCurrentUser(res.user);
-      setCurrentRole(assignedRole);
-
-      if (accountType === "ORGANIZATION_CREATOR") {
-        router.push("/onboarding");
-      } else if (accountType === "EVENT_ADMIN") {
-        router.push("/dashboard");
-      } else {
-        router.push("/participant");
-      }
+      setCurrentRole(res.user.role);
+      router.push(isOrganizationOwner ? "/dashboard" : "/participant");
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Registration failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="w-full max-w-lg p-8 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl backdrop-blur-md space-y-6">
-      <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-600 text-white font-mono font-bold text-xl shadow-lg shadow-indigo-500/30">
-          EO
-        </div>
-        <h2 className="text-2xl font-bold tracking-tight text-white font-mono">
-          Create EventOps Account
-        </h2>
-        <p className="text-xs text-slate-400">
-          Universal event operations SaaS platform for colleges, enterprises, and communities.
-        </p>
+    <div className="w-full max-w-lg space-y-6 rounded-3xl border border-slate-800 bg-slate-900/90 p-8 shadow-2xl backdrop-blur-md">
+      <div className="space-y-2 text-center">
+        <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 font-mono text-xl font-bold text-white shadow-lg shadow-indigo-500/30">EO</div>
+        <h2 className="font-mono text-2xl font-bold tracking-tight text-white">Create EVENTOPS Account</h2>
+        <p className="text-xs text-slate-400">Start an organization workspace or create a participant account.</p>
       </div>
 
-      {/* Account Type Selection */}
-      <div className="space-y-2">
-        <label className="text-xs font-semibold text-slate-300 block">Registration Role</label>
-        <div className="grid grid-cols-3 gap-2.5">
-          <button
-            type="button"
-            onClick={() => setAccountType("EVENT_ADMIN")}
-            className={`p-3 rounded-xl border text-left transition cursor-pointer ${
-              accountType === "EVENT_ADMIN"
-                ? "bg-indigo-600/20 border-indigo-500 text-white"
-                : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700"
-            }`}
-          >
-            <ShieldCheck className="w-5 h-5 text-indigo-400 mb-1" />
-            <div className="text-xs font-bold leading-tight">Event Admin</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Direct Event Operations</div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setAccountType("ORGANIZATION_CREATOR")}
-            className={`p-3 rounded-xl border text-left transition cursor-pointer ${
-              accountType === "ORGANIZATION_CREATOR"
-                ? "bg-indigo-600/20 border-indigo-500 text-white"
-                : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700"
-            }`}
-          >
-            <Building2 className="w-5 h-5 text-indigo-400 mb-1" />
-            <div className="text-xs font-bold leading-tight">Organization</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Campus / Company Host</div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setAccountType("PARTICIPANT")}
-            className={`p-3 rounded-xl border text-left transition cursor-pointer ${
-              accountType === "PARTICIPANT"
-                ? "bg-indigo-600/20 border-indigo-500 text-white"
-                : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700"
-            }`}
-          >
-            <UserPlus className="w-5 h-5 text-indigo-400 mb-1" />
-            <div className="text-xs font-bold leading-tight">Participant</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Hackathons & Fests</div>
-          </button>
-        </div>
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => { setAccountType("ORGANIZATION_CREATOR"); setErrorMsg(null); }}
+          className={`cursor-pointer rounded-xl border p-4 text-left transition ${accountType === "ORGANIZATION_CREATOR" ? "border-indigo-500 bg-indigo-600/20 text-white" : "border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700"}`}
+        >
+          <Building2 className="mb-2 h-5 w-5 text-indigo-400" />
+          <div className="text-sm font-bold">Organization head</div>
+          <div className="mt-1 text-xs text-slate-400">Create a new organization</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => { setAccountType("PARTICIPANT"); setErrorMsg(null); }}
+          className={`cursor-pointer rounded-xl border p-4 text-left transition ${accountType === "PARTICIPANT" ? "border-indigo-500 bg-indigo-600/20 text-white" : "border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700"}`}
+        >
+          <UserPlus className="mb-2 h-5 w-5 text-indigo-400" />
+          <div className="text-sm font-bold">Participant</div>
+          <div className="mt-1 text-xs text-slate-400">Create a participant account</div>
+        </button>
       </div>
 
-      {/* Security notice regarding privileged roles */}
-      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400 flex items-start gap-2.5">
-        <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-        <div>
-          <span className="font-semibold text-slate-200">Joining as Judge, Volunteer, or Staff?</span>
-          <p className="mt-0.5 text-slate-400">
-            Jury and staff roles are access-controlled via invitation tokens issued by your Event Director.
-          </p>
-        </div>
+      <div className="flex items-start gap-2.5 rounded-xl border border-slate-800 bg-slate-950 p-3 text-[11px] text-slate-400">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+        <p>Event Admin, Judge, Volunteer, and staff access is granted through verified event assignments or administrator-managed invitations—not public self-registration.</p>
       </div>
+
+      {errorMsg && <div role="alert" className="rounded-xl border border-rose-400/20 bg-rose-400/[0.07] px-4 py-3 text-sm text-rose-200">{errorMsg}</div>}
 
       <form onSubmit={handleRegister} className="space-y-4">
-        <Input
-          label="Full Legal / Professional Name"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Rachel Dupont"
-        />
-
-        <Input
-          label="Work or Academic Email"
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="name@organization.com"
-        />
-
-        <Input
-          label="Choose Password"
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••••••"
-        />
-
-        <Button
-          type="submit"
-          variant="primary"
-          size="lg"
-          className="w-full"
-          isLoading={isLoading}
-          rightIcon={<ArrowRight className="w-4 h-4" />}
-        >
-          {accountType === "EVENT_ADMIN"
-            ? "Create Event Admin Account"
-            : accountType === "ORGANIZATION_CREATOR"
-            ? "Continue to Organization Setup"
-            : "Create Participant Account"}
+        <Input label="Full name" required autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" />
+        {accountType === "ORGANIZATION_CREATOR" && (
+          <Input label="Organization / institution name" required autoComplete="organization" value={organizationName} onChange={(e) => setOrganizationName(e.target.value)} placeholder="Your college, company, or organization" />
+        )}
+        <Input label="Email address" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@organization.com" />
+        <Input label="Password (at least 8 characters)" type="password" required autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Choose a secure password" />
+        <Button type="submit" variant="primary" size="lg" className="w-full" isLoading={isLoading} rightIcon={<ArrowRight className="h-4 w-4" />}>
+          {isLoading ? "Creating account…" : accountType === "ORGANIZATION_CREATOR" ? "Create organization & continue" : "Create participant account"}
         </Button>
       </form>
 
-      <div className="pt-4 border-t border-slate-800 text-center text-xs text-slate-400 space-y-1">
-        <div>
-          Already have an account?{" "}
-          <Link href="/login" className="text-indigo-400 font-semibold hover:underline">
-            Sign In
-          </Link>
-        </div>
-        <div className="text-[11px] text-slate-500">
-          Strict Enterprise RBAC Enforcement • Team Panch Pandavs
-        </div>
+      <div className="space-y-1 border-t border-slate-800 pt-4 text-center text-xs text-slate-400">
+        <div>Already have an account? <Link href="/login" className="font-semibold text-indigo-400 hover:underline">Sign in</Link></div>
+        <div className="text-[11px] text-slate-500">Account roles and organization access are verified by the backend.</div>
       </div>
     </div>
   );
