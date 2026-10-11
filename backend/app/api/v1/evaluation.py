@@ -1,146 +1,141 @@
 import uuid
-from typing import List, Optional
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.events import manager as realtime_manager
-from app.models.entities import Evaluation, Team, Judge, User
+from app.models.entities import Evaluation, Team, Judge, User, Round, Event
 from app.schemas.entities import EvaluationCreate, EvaluationResponse
 from app.api.deps import get_current_user
+from app.api.v1.events import _active_role, _is_platform_admin, require_event_scope
 
 router = APIRouter()
 
 
-@router.post("", response_model=EvaluationResponse, status_code=status.HTTP_201_CREATED)
+def _assigned_judge(db: Session, user: User, event_id: str) -> Judge:
+    """Resolve a judge only for an active event-scoped JUDGE session."""
+    if _active_role(user) != "JUDGE":
+        raise HTTPException(status_code=403, detail="Only an authenticated judge can access scoring operations.")
+    if getattr(user, "active_event_id", None) != event_id:
+        raise HTTPException(status_code=403, detail="The judge session is not scoped to this event.")
+    judge = db.query(Judge).filter(Judge.user_id == user.id, Judge.event_id == event_id).first()
+    if not judge:
+        raise HTTPException(status_code=403, detail="No judge assignment exists for this event.")
+    return judge
+
+
+def _judge_assigned_to_team(judge: Judge, team: Team) -> bool:
+    return judge.id in (team.assigned_judges or []) or team.id in (judge.assigned_teams or [])
+
+
+def _evaluation_response(record: Evaluation, team: Team | None = None) -> EvaluationResponse:
+    return EvaluationResponse(
+        id=record.id, eventId=record.event_id, roundId=record.round_id, judgeId=record.judge_id,
+        teamId=record.team_id, teamName=team.name if team else None, scores=record.scores,
+        totalScore=record.total_score, feedback=record.feedback, strengths=record.strengths,
+        areasToImprove=record.areas_to_improve, status=record.status,
+        submittedAt=record.submitted_at.isoformat() if record.submitted_at else "",
+    )
+
+
+@router.post("", response_model=EvaluationResponse, status_code=201)
 async def submit_evaluation(
     payload: EvaluationCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Submit multi-criteria scoring rubric for an assigned team."""
+    """Submit a score only when the caller is an assigned judge for the event/team."""
     team = db.query(Team).filter(Team.id == payload.teamId).first()
     if not team:
         raise HTTPException(status_code=404, detail="Team not found.")
+    if payload.eventId != team.event_id:
+        raise HTTPException(status_code=403, detail="The requested event does not own this team.")
 
-    # Find judge record for this user or create reference
-    judge = db.query(Judge).filter(Judge.user_id == current_user.id).first()
-    judge_id = judge.id if judge else current_user.id
+    judge = _assigned_judge(db, current_user, team.event_id)
+    if not _judge_assigned_to_team(judge, team):
+        raise HTTPException(status_code=403, detail="This judge is not assigned to score the selected team.")
+    round_record = db.query(Round).filter(Round.id == payload.roundId, Round.event_id == team.event_id).first()
+    if not round_record:
+        raise HTTPException(status_code=404, detail="Round not found for this event.")
 
-    # Compute total score
     scores = payload.scores
     total_score = round(sum(scores.values()), 2)
-
-    eval_record = (
-        db.query(Evaluation)
-        .filter(
-            Evaluation.round_id == payload.roundId,
-            Evaluation.judge_id == judge_id,
-            Evaluation.team_id == payload.teamId,
-        )
-        .first()
-    )
+    record = db.query(Evaluation).filter(
+        Evaluation.event_id == team.event_id,
+        Evaluation.round_id == payload.roundId,
+        Evaluation.judge_id == judge.id,
+        Evaluation.team_id == team.id,
+    ).first()
 
     now = datetime.now(timezone.utc)
-    if eval_record:
-        eval_record.scores = scores
-        eval_record.total_score = total_score
-        eval_record.feedback = payload.feedback
-        eval_record.strengths = payload.strengths
-        eval_record.areas_to_improve = payload.areasToImprove
-        eval_record.submitted_at = now
+    if record:
+        record.scores = scores
+        record.total_score = total_score
+        record.feedback = payload.feedback
+        record.strengths = payload.strengths
+        record.areas_to_improve = payload.areasToImprove
+        record.status = payload.status
+        record.submitted_at = now
     else:
-        eval_record = Evaluation(
-            id=f"eval-{uuid.uuid4().hex[:8]}",
-            event_id=payload.eventId,
-            round_id=payload.roundId,
-            judge_id=judge_id,
-            team_id=payload.teamId,
-            scores=scores,
-            total_score=total_score,
-            feedback=payload.feedback,
-            strengths=payload.strengths,
-            areas_to_improve=payload.areasToImprove,
-            status=payload.status,
-            submitted_at=now,
+        record = Evaluation(
+            id=f"eval-{uuid.uuid4().hex[:8]}", event_id=team.event_id, round_id=payload.roundId,
+            judge_id=judge.id, team_id=team.id, scores=scores, total_score=total_score,
+            feedback=payload.feedback, strengths=payload.strengths, areas_to_improve=payload.areasToImprove,
+            status=payload.status, submitted_at=now,
         )
-        db.add(eval_record)
-
+        db.add(record)
     db.commit()
 
-    # Recalculate team total score & ranks across all evaluations
-    team_evals = db.query(Evaluation).filter(Evaluation.team_id == payload.teamId).all()
-    avg_score = round(sum(e.total_score for e in team_evals) / len(team_evals), 2)
-    team.total_score = avg_score
+    team_evaluations = db.query(Evaluation).filter(Evaluation.team_id == team.id).all()
+    team.total_score = round(sum(item.total_score for item in team_evaluations) / len(team_evaluations), 2) if team_evaluations else 0.0
     db.commit()
 
-    # Broadcast evaluation update over WebSockets
     await realtime_manager.broadcast("evaluation:live", {
-        "type": "SCORECARD_SUBMITTED",
-        "teamId": team.id,
-        "teamName": team.name,
-        "roundId": payload.roundId,
-        "totalScore": total_score,
-        "timestamp": now.isoformat(),
+        "type": "SCORECARD_SUBMITTED", "eventId": team.event_id, "teamId": team.id, "teamName": team.name,
+        "roundId": payload.roundId, "totalScore": total_score, "timestamp": now.isoformat(),
     })
-
-    return EvaluationResponse(
-        id=eval_record.id,
-        eventId=eval_record.event_id,
-        roundId=eval_record.round_id,
-        judgeId=eval_record.judge_id,
-        teamId=eval_record.team_id,
-        teamName=team.name,
-        scores=eval_record.scores,
-        totalScore=eval_record.total_score,
-        feedback=eval_record.feedback,
-        strengths=eval_record.strengths,
-        areasToImprove=eval_record.areas_to_improve,
-        status=eval_record.status,
-        submittedAt=eval_record.submitted_at.isoformat() if eval_record.submitted_at else "",
-    )
+    return _evaluation_response(record, team)
 
 
 @router.get("/team/{team_id}", response_model=List[EvaluationResponse])
-def get_team_evaluations(team_id: str, db: Session = Depends(get_db)):
-    """Retrieve scorecards for a specific team."""
-    evals = db.query(Evaluation).filter(Evaluation.team_id == team_id).all()
+def get_team_evaluations(
+    team_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Retrieve scorecards only for permitted event users or an assigned judge."""
     team = db.query(Team).filter(Team.id == team_id).first()
-    return [
-        EvaluationResponse(
-            id=e.id,
-            eventId=e.event_id,
-            roundId=e.round_id,
-            judgeId=e.judge_id,
-            teamId=e.team_id,
-            teamName=team.name if team else None,
-            scores=e.scores,
-            totalScore=e.total_score,
-            feedback=e.feedback,
-            strengths=e.strengths,
-            areasToImprove=e.areas_to_improve,
-            status=e.status,
-            submittedAt=e.submitted_at.isoformat() if e.submitted_at else "",
-        )
-        for e in evals
-    ]
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found.")
+    if _active_role(current_user) == "JUDGE":
+        judge = _assigned_judge(db, current_user, team.event_id)
+        if not _judge_assigned_to_team(judge, team):
+            raise HTTPException(status_code=403, detail="This judge is not assigned to the selected team.")
+    else:
+        event = db.query(Event).filter(Event.id == team.event_id).first()
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found.")
+        require_event_scope(event, current_user)
+
+    records = db.query(Evaluation).filter(Evaluation.team_id == team.id).all()
+    return [_evaluation_response(item, team) for item in records]
 
 
 @router.get("/leaderboard/{event_id}")
-def get_leaderboard(event_id: str, db: Session = Depends(get_db)):
-    """Compute real-time sorted leaderboard for event."""
+def get_leaderboard(
+    event_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Read leaderboard only for the event authorized by the current session."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, current_user)
     teams = db.query(Team).filter(Team.event_id == event_id).order_by(Team.total_score.desc()).all()
     results = []
-    for rank, t in enumerate(teams, start=1):
-        t.rank = rank
+    for rank, team in enumerate(teams, start=1):
+        team.rank = rank
         results.append({
-            "rank": rank,
-            "teamId": t.id,
-            "teamName": t.name,
-            "domain": t.project_domain,
-            "totalScore": t.total_score,
-            "checkInStatus": t.check_in_status,
+            "rank": rank, "teamId": team.id, "teamName": team.name, "domain": team.project_domain,
+            "totalScore": team.total_score, "checkInStatus": team.check_in_status,
         })
     db.commit()
     return results
-
