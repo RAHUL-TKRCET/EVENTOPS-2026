@@ -91,25 +91,42 @@ def get_current_tenant_user(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> User:
-    """Validate requested tenant scope against trusted user/membership records."""
+    """Validate tenant context against the verified JWT role and persisted membership."""
     active_role = getattr(current_user, "active_role", current_user.role)
     active_event_id = getattr(current_user, "active_event_id", None)
+    current_org = getattr(current_user, "active_organization_id", None) or current_user.organization_id
+
     requested_org = x_organization_id
-    if not requested_org or requested_org in {"undefined", "null", ""}:
-        requested_org = getattr(current_user, "active_organization_id", None) or current_user.organization_id
-    if active_role == "SUPER_ADMIN" and not active_event_id and not requested_org:
-        return current_user
-    if not requested_org:
-        raise HTTPException(status_code=403, detail="An authorized organization context is required.")
-    if current_user.organization_id == requested_org and active_role in {"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"}:
-        return current_user
+    if requested_org in {"undefined", "null", ""}:
+        requested_org = None
+
+    # The header is a compatibility filter, not an authority source.
     if active_role == "SUPER_ADMIN" and not active_event_id:
+        if requested_org and not db.query(OrganizationMembership).filter(
+            OrganizationMembership.organization_id == requested_org
+        ).first():
+            raise HTTPException(status_code=404, detail="Organization not found.")
         return current_user
+
+    if active_event_id:
+        event = db.query(Event).filter(Event.id == active_event_id).first()
+        if not event or event.organization_id != current_org:
+            raise HTTPException(status_code=403, detail="The active event assignment is no longer valid.")
+        if requested_org and requested_org != event.organization_id:
+            raise HTTPException(status_code=403, detail="Cross-tenant access denied.")
+        return current_user
+
+    if not current_org:
+        raise HTTPException(status_code=403, detail="An authorized organization context is required.")
+    if requested_org and requested_org != current_org:
+        raise HTTPException(status_code=403, detail="Cross-tenant access denied.")
+
     membership = db.query(OrganizationMembership).filter(
         OrganizationMembership.user_id == current_user.id,
-        OrganizationMembership.organization_id == requested_org,
+        OrganizationMembership.organization_id == current_org,
+        OrganizationMembership.role == active_role,
         OrganizationMembership.status == "ACTIVE",
     ).first()
     if not membership:
-        raise HTTPException(status_code=403, detail="Cross-tenant access denied.")
+        raise HTTPException(status_code=403, detail="An active matching organization membership is required.")
     return current_user
