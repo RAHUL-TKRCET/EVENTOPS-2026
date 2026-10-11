@@ -3,14 +3,20 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.entities import Team, AttendanceRecord
+from app.models.entities import Team, AttendanceRecord, Event
 from app.schemas.entities import QRScanRequest
+from app.api.deps import get_current_user, User
+from app.api.v1.events import require_event_scope
 
 router = APIRouter()
 
 
 @router.get("/metrics")
-def get_attendance_metrics(eventId: str = "evt-01", db: Session = Depends(get_db)):
+def get_attendance_metrics(eventId: str = "evt-01", db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+    event = db.query(Event).filter(Event.id == eventId).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, actor)
     """Compute real-time attendance KPIs from database."""
     teams = db.query(Team).filter(Team.event_id == eventId).all()
     total = len(teams)
@@ -50,7 +56,11 @@ def get_attendance_metrics(eventId: str = "evt-01", db: Session = Depends(get_db
 
 
 @router.get("/records")
-def list_attendance_records(eventId: str = "evt-01", db: Session = Depends(get_db)):
+def list_attendance_records(eventId: str = "evt-01", db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+    event = db.query(Event).filter(Event.id == eventId).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, actor)
     """Retrieve audit log of all hardware scans."""
     records = (
         db.query(AttendanceRecord)
