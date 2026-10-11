@@ -14,9 +14,9 @@ export function errorHandler(
     return res.status(400).json({
       error: "Validation Error",
       message: "One or more fields failed schema validation.",
-      details: err.errors.map((e) => ({
-        path: e.path.join("."),
-        message: e.message,
+      details: err.issues.map((issue) => ({
+        path: issue.path.join("."),
+        message: issue.message,
       })),
       timestamp: new Date().toISOString(),
     });
@@ -39,4 +39,3 @@ export function errorHandler(
     timestamp: new Date().toISOString(),
   });
 }
-
