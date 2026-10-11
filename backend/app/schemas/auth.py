@@ -65,7 +65,7 @@ class RoleSwitchResponse(BaseModel):
     token: str
     accessToken: str
     refreshToken: str
-    expiresIn: int = 86400
+    expiresIn: int = 900
 
 
 class VerifyInviteRequest(BaseModel):
