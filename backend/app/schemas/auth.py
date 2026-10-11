@@ -44,6 +44,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=6)
     role: Optional[UserRole] = "PARTICIPANT"
     organizationId: Optional[str] = None
+    organizationName: Optional[str] = Field(default=None, max_length=255)
 
 
 class TokenResponse(BaseModel):
