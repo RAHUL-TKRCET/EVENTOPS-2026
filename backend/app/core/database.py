@@ -36,6 +36,13 @@ def resolve_database_url() -> str:
         pg_url = f"postgresql+psycopg2://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
         return pg_url
 
+    # Production must fail closed rather than silently persisting requests to an
+    # instance-local SQLite database that loses data and bypasses managed Postgres.
+    if settings.ENVIRONMENT.strip().lower() in {"production", "prod"}:
+        raise RuntimeError(
+            "DATABASE_URL or DB_HOST must be configured for PostgreSQL in production."
+        )
+
     # Local development & fallback persistent SQLite storage
     data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data"))
     os.makedirs(data_dir, exist_ok=True)
