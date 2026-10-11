@@ -65,6 +65,24 @@ class OrganizationMembership(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
 
+
+class Invitation(Base):
+    __tablename__ = "invitations"
+
+    id = Column(String(64), primary_key=True)
+    email = Column(String(255), nullable=False, index=True)
+    role = Column(String(32), nullable=False)
+    organization_id = Column(String(64), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_id = Column(String(64), ForeignKey("events.id", ondelete="CASCADE"), nullable=True, index=True)
+    invited_by = Column(String(64), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    token_hash = Column(String(64), nullable=False, unique=True)
+    status = Column(String(32), nullable=False, default="PENDING", index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    accepted_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+
+
 class Event(Base):
     __tablename__ = "events"
 
