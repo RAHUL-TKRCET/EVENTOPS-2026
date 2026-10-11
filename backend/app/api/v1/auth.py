@@ -1,11 +1,14 @@
+import hashlib
+import secrets
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token
-from app.models.entities import User, OrganizationMembership, Organization, EventMember
+from app.models.entities import User, OrganizationMembership, Organization, Event, EventMember, EventInvitation
 from app.schemas.auth import (
     LoginRequest,
     EventLoginRequest,
@@ -16,8 +19,12 @@ from app.schemas.auth import (
     RoleSwitchResponse,
     VerifyInviteRequest,
     VerifyInviteResponse,
+    EventInvitationCreateRequest,
+    EventInvitationCreateResponse,
+    EventInvitationRedeemRequest,
 )
 from app.api.deps import get_current_user, require_roles
+from app.api.event_access import ensure_event_access, get_event_or_404
 
 router = APIRouter()
 
@@ -314,13 +321,251 @@ def switch_active_role(
     )
 
 
+@router.post("/invitations", response_model=EventInvitationCreateResponse, status_code=status.HTTP_201_CREATED)
+def create_event_invitation(
+    payload: EventInvitationCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a high-entropy, one-time event invitation for a permitted role."""
+    event = get_event_or_404(payload.eventId, db)
+    active_role = getattr(current_user, "active_role", current_user.role)
+    event_roles = {
+        "EVENT_ADMIN",
+        "COORDINATOR",
+        "JUDGE",
+        "VOLUNTEER",
+        "PARTICIPANT",
+        "TECHNICAL_STAFF",
+        "RESOURCE_MANAGER",
+    }
+    if payload.role not in event_roles:
+        raise HTTPException(status_code=400, detail="Only event-scoped roles can be invited.")
+    ensure_event_access(
+        event,
+        current_user,
+        db,
+        required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"},
+    )
+    if payload.role == "EVENT_ADMIN" and active_role not in {"SUPER_ADMIN", "ORGANIZATION_ADMIN"}:
+        raise HTTPException(status_code=403, detail="Only platform or organization admins may invite event admins.")
+
+    email = str(payload.email).strip().lower()
+    now = datetime.now(timezone.utc)
+    existing_active = (
+        db.query(EventMember)
+        .filter(
+            EventMember.event_id == event.id,
+            EventMember.email.ilike(email),
+            EventMember.role == payload.role,
+            EventMember.status == "ACTIVE",
+        )
+        .first()
+    )
+    if existing_active:
+        raise HTTPException(status_code=409, detail="This email already has an active assignment for the requested role.")
+
+    # Rotate prior unused invitations for the same scope before creating a new
+    # capability. The raw token is returned once and only its SHA-256 hash is stored.
+    prior = (
+        db.query(EventInvitation)
+        .filter(
+            EventInvitation.event_id == event.id,
+            EventInvitation.email.ilike(email),
+            EventInvitation.role == payload.role,
+            EventInvitation.redeemed_at.is_(None),
+            EventInvitation.revoked_at.is_(None),
+        )
+        .all()
+    )
+    for old_invitation in prior:
+        old_invitation.revoked_at = now
+        old_member = db.query(EventMember).filter(EventMember.id == old_invitation.event_member_id).first()
+        if old_member and old_member.status == "INVITED":
+            old_member.status = "REVOKED"
+
+    raw_token = secrets.token_urlsafe(36)
+    invitation_id = f"inv-{uuid.uuid4().hex}"
+    member_id = f"em-{uuid.uuid4().hex[:20]}"
+    expires_at = now + timedelta(hours=payload.expiresInHours)
+    member = EventMember(
+        id=member_id,
+        event_id=event.id,
+        user_id=None,
+        name=email,
+        email=email,
+        role=payload.role,
+        status="INVITED",
+        added_by=current_user.id,
+    )
+    invitation = EventInvitation(
+        id=invitation_id,
+        token_hash=hashlib.sha256(raw_token.encode("utf-8")).hexdigest(),
+        event_id=event.id,
+        event_member_id=member_id,
+        invited_by_user_id=current_user.id,
+        email=email,
+        role=payload.role,
+        expires_at=expires_at,
+    )
+    db.add(member)
+    db.add(invitation)
+    db.commit()
+
+    return EventInvitationCreateResponse(
+        invitationId=invitation_id,
+        eventId=event.id,
+        email=email,
+        role=payload.role,
+        invitationToken=raw_token,
+        expiresAt=expires_at.isoformat(),
+        message="Invitation created. Copy this token now and deliver it to the invitee over a trusted channel; it will not be shown again.",
+    )
+
+
+@router.post("/event-invitations/redeem", response_model=TokenResponse)
+def redeem_event_invitation(
+    payload: EventInvitationRedeemRequest,
+    db: Session = Depends(get_db),
+):
+    """Redeem an invitation using the token and password for its bound email."""
+    raw_token = payload.invitationToken.strip()
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    invitation = db.query(EventInvitation).filter(EventInvitation.token_hash == token_hash).first()
+    now = datetime.now(timezone.utc)
+    if not invitation or invitation.redeemed_at is not None or invitation.revoked_at is not None:
+        raise HTTPException(status_code=400, detail="Invitation is invalid, revoked, or already used.")
+    expiry = invitation.expires_at
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+    if expiry <= now:
+        raise HTTPException(status_code=400, detail="Invitation has expired.")
+
+    member = (
+        db.query(EventMember)
+        .filter(
+            EventMember.id == invitation.event_member_id,
+            EventMember.event_id == invitation.event_id,
+            EventMember.email.ilike(invitation.email),
+            EventMember.role == invitation.role,
+            EventMember.status == "INVITED",
+        )
+        .first()
+    )
+    if not member:
+        raise HTTPException(status_code=409, detail="The invitation's roster assignment is no longer available.")
+
+    user = db.query(User).filter(User.email.ilike(invitation.email)).first()
+    if user:
+        if not verify_password(payload.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="The password does not match the account bound to this email.")
+    else:
+        if not payload.name:
+            raise HTTPException(status_code=422, detail="Name is required when creating an account from an invitation.")
+        user = User(
+            id=f"usr-{uuid.uuid4().hex[:16]}",
+            name=payload.name.strip(),
+            email=invitation.email,
+            password_hash=get_password_hash(payload.password),
+            role="PARTICIPANT",
+            organization_id=None,
+        )
+        db.add(user)
+        db.flush()
+
+    if member.user_id and member.user_id != user.id:
+        raise HTTPException(status_code=409, detail="This roster entry is already linked to a different account.")
+
+    event = db.query(Event).filter(Event.id == invitation.event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="The invitation's event no longer exists.")
+
+    member.user_id = user.id
+    member.status = "ACTIVE"
+    invitation.redeemed_at = now
+    db.commit()
+    db.refresh(user)
+
+    claims = {
+        "email": user.email,
+        "role": invitation.role,
+        "eventId": invitation.event_id,
+        "organizationId": event.organization_id,
+        "name": user.name,
+    }
+    access_token = create_access_token(subject=user.id, claims=claims)
+    refresh_token = create_refresh_token(subject=user.id)
+    return TokenResponse(
+        user=UserResponse(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            role=invitation.role,
+            organizationId=user.organization_id,
+            createdAt=user.created_at.isoformat() if user.created_at else None,
+        ),
+        token=access_token,
+        accessToken=access_token,
+        refreshToken=refresh_token,
+        expiresIn=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+
+
 @router.post("/verify-invite", response_model=VerifyInviteResponse)
 def verify_invite(payload: VerifyInviteRequest, db: Session = Depends(get_db)):
-    """Legacy static invite codes are intentionally disabled."""
+    """Verify a one-time database-backed event invitation without consuming it."""
+    raw_token = payload.inviteCode.strip()
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    invitation = db.query(EventInvitation).filter(EventInvitation.token_hash == token_hash).first()
+    now = datetime.now(timezone.utc)
+    if not invitation or invitation.redeemed_at is not None or invitation.revoked_at is not None:
+        return VerifyInviteResponse(valid=False, message="Invalid, revoked, or already-used invitation.")
+    expiry = invitation.expires_at
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+    if expiry <= now:
+        return VerifyInviteResponse(valid=False, message="This invitation has expired.")
+
+    event = db.query(Event).filter(Event.id == invitation.event_id).first()
+    if not event:
+        return VerifyInviteResponse(valid=False, message="The event for this invitation no longer exists.")
+    organization = db.query(Organization).filter(Organization.id == event.organization_id).first() if event.organization_id else None
     return VerifyInviteResponse(
-        valid=False,
-        message="Legacy invitation codes have been disabled. Use an invitation issued by an authorized event or organization administrator.",
+        valid=True,
+        role=invitation.role,
+        organizationId=event.organization_id,
+        organizationName=organization.name if organization else None,
+        eventId=event.id,
+        eventName=event.name,
+        message="Valid event invitation. It can be redeemed once before its expiry.",
     )
+
+
+@router.delete("/invitations/{invitation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_event_invitation(
+    invitation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Revoke an unused invitation and its unredeemed roster assignment."""
+    invitation = db.query(EventInvitation).filter(EventInvitation.id == invitation_id).first()
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found.")
+    event = get_event_or_404(invitation.event_id, db)
+    ensure_event_access(
+        event,
+        current_user,
+        db,
+        required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"},
+    )
+    if invitation.redeemed_at is not None:
+        raise HTTPException(status_code=409, detail="A redeemed invitation cannot be revoked; remove the active event assignment instead.")
+    invitation.revoked_at = datetime.now(timezone.utc)
+    member = db.query(EventMember).filter(EventMember.id == invitation.event_member_id).first()
+    if member and member.status == "INVITED":
+        member.status = "REVOKED"
+    db.commit()
+    return None
 
 
 @router.get("/users", response_model=List[UserResponse])
