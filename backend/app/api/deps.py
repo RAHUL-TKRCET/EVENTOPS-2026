@@ -58,19 +58,25 @@ def get_current_user(
             .first()
         )
         if not member:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="The event-role assignment is missing or no longer active.")
-        if token_org_id and user.organization_id and token_org_id != user.organization_id:
-            # Event membership is the source of event scope; the user's default organization
-            # field is not proof of membership in the event's organization.
-            event = db.query(Event).filter_by(id=token_event_id).first()
-            if not event or event.organization_id != token_org_id:
-                raise HTTPException(status_code=403, detail="The event token organization scope does not match the event.")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="The event-role assignment is missing or no longer active.",
+            )
+        event = db.query(Event).filter(Event.id == token_event_id).first()
+        if not event or event.organization_id != token_org_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="The event token organization scope does not match the event.",
+            )
         user.active_role = token_role
         user.active_event_id = token_event_id
         user.active_organization_id = token_org_id
     elif token_role == "SUPER_ADMIN":
         if user.role != "SUPER_ADMIN":
-            raise HTTPException(status_code=403, detail="This account is not authorized for the platform administrator role.")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This account is not authorized for the platform administrator role.",
+            )
         user.active_role = "SUPER_ADMIN"
         user.active_event_id = None
         user.active_organization_id = None
@@ -86,12 +92,18 @@ def get_current_user(
             .first()
         )
         if not membership:
-            raise HTTPException(status_code=403, detail="The organization-role assignment is missing or no longer active.")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="The organization-role assignment is missing or no longer active.",
+            )
         user.active_role = token_role
         user.active_event_id = None
         user.active_organization_id = membership.organization_id
     elif token_role != user.role:
-        raise HTTPException(status_code=403, detail="Token role does not match the account role or an active scoped assignment.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Token role does not match the account role or an active scoped assignment.",
+        )
     else:
         user.active_role = user.role
         user.active_event_id = None
