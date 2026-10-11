@@ -73,8 +73,8 @@ export default function DashboardPage() {
       },
       {
         title: "People & role assignments",
-        description: "Open your event list to manage event access and coordinate role assignments.",
-        href: "/events",
+        description: "Review organization members, invite event roles, and manage access assignments.",
+        href: "/people",
         icon: <UserPlus className="w-5 h-5" />,
         accent: "text-emerald-300 bg-emerald-500/10 border-emerald-500/20",
         action: "Manage access",
