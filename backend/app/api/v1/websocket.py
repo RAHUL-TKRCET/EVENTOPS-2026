@@ -52,6 +52,9 @@ def validate_access_token(token: str) -> Optional[Dict[str, Any]]:
             )
             if not membership:
                 return None
+            event = db.query(Event).filter(Event.id == event_id).first()
+            if not event or not organization_id or event.organization_id != organization_id:
+                return None
         elif role == "ORGANIZATION_ADMIN":
             membership = (
                 db.query(OrganizationMembership)
