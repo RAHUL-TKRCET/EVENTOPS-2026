@@ -17,6 +17,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const pathname = usePathname();
   const router = useRouter();
   const { isMobileSidebarOpen, setMobileSidebarOpen, theme, currentRole, currentUser } = useAppStore();
+  const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && pathname === "/dashboard";
 
   // Public pages that do not require an active session
   const isPublicPage =
@@ -78,13 +79,16 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   return (
     <div className="min-h-screen flex bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
-      {/* Desktop Persistent Sidebar */}
-      <div className="hidden md:block">
-        <Sidebar />
-      </div>
+      {/* Organization Admin home is a focused, card-based workspace rather than a persistent navigation shell. */}
+      {!isOrganizationHome && (
+        <>
+          {/* Desktop Persistent Sidebar */}
+          <div className="hidden md:block">
+            <Sidebar />
+          </div>
 
-      {/* Mobile Drawer Sidebar */}
-      {isMobileSidebarOpen && (
+          {/* Mobile Drawer Sidebar */}
+          {isMobileSidebarOpen && (
         <div className="fixed inset-0 z-50 md:hidden flex">
           <div
             className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity"
@@ -93,7 +97,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           <div className="relative z-10 w-72 max-w-[85vw] h-full bg-slate-950 shadow-2xl">
             <Sidebar />
           </div>
-        </div>
+          )}
+        </>
       )}
 
       {/* Main Content Workspace */}
