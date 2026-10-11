@@ -3,7 +3,7 @@ from typing import Optional, Set
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.entities import Event, EventMember, OrganizationMembership, User
+from app.models.entities import Event, EventMember, OrganizationMembership, Team, TeamMember, User
 
 
 def ensure_event_access(
@@ -75,3 +75,27 @@ def get_event_or_404(event_id: str, db: Session) -> Event:
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
     return event
+
+
+
+def ensure_team_scope(team: Team, user: User, db: Session) -> None:
+    """Restrict participant and judge reads to their own/assigned teams."""
+    active_role = getattr(user, "active_role", user.role)
+    event = get_event_or_404(team.event_id, db)
+    ensure_event_access(event, user, db)
+
+    if active_role == "PARTICIPANT":
+        membership = (
+            db.query(TeamMember.id)
+            .filter(
+                TeamMember.team_id == team.id,
+                TeamMember.email.ilike(user.email),
+            )
+            .first()
+        )
+        if team.lead_email.lower() != user.email.lower() and not membership:
+            raise HTTPException(status_code=403, detail="Participants may only view their own team.")
+    elif active_role == "JUDGE":
+        assigned_judges = team.assigned_judges or []
+        if user.id not in assigned_judges:
+            raise HTTPException(status_code=403, detail="Judges may only view teams assigned to them.")
