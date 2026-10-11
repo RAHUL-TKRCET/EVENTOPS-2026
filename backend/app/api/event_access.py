@@ -27,6 +27,10 @@ def ensure_event_access(
     if active_event_id and active_event_id != event.id:
         raise HTTPException(status_code=403, detail="This session is not assigned to the requested event.")
 
+    if active_event_id:
+        if getattr(user, "active_organization_id", None) != event.organization_id:
+            raise HTTPException(status_code=403, detail="This event session is outside the event's organization scope.")
+
     if active_role == "ORGANIZATION_ADMIN":
         membership = (
             db.query(OrganizationMembership)
