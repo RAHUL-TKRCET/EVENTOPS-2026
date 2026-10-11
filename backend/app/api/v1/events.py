@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.entities import (
     Event,
+    Organization,
     Round,
     RoundCriterion,
     TimeSlot,
@@ -112,26 +113,81 @@ def map_event_to_response(event: Event, db: Session) -> EventResponse:
     )
 
 
+def _active_role(user: User) -> str:
+    return getattr(user, "active_role", user.role)
+
+
+def _is_platform_admin(user: User) -> bool:
+    return _active_role(user) == "SUPER_ADMIN" and not getattr(user, "active_event_id", None)
+
+
+def require_event_scope(event: Event, user: User) -> None:
+    """Authorize event access from the verified principal, not client-supplied tenant headers."""
+    role = _active_role(user)
+    event_scope = getattr(user, "active_event_id", None)
+    org_scope = getattr(user, "active_organization_id", None) or user.organization_id
+
+    if _is_platform_admin(user):
+        return
+    if event_scope:
+        if event_scope != event.id or org_scope != event.organization_id:
+            raise HTTPException(status_code=403, detail="Event access denied.")
+        return
+    if role == "ORGANIZATION_ADMIN":
+        if not org_scope or event.organization_id != org_scope:
+            raise HTTPException(status_code=403, detail="Cross-organization event access denied.")
+        return
+    if role == "EVENT_ADMIN":
+        if event.owner_id != user.id:
+            raise HTTPException(status_code=403, detail="Event access denied.")
+        return
+    raise HTTPException(status_code=403, detail="This role cannot administer event data.")
+
+
 @router.get("", response_model=List[EventResponse])
 def list_events(
     organization_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    _tenant_user: Optional[User] = Depends(get_current_tenant_user),
+    current_user: User = Depends(get_current_user),
 ):
-    """List events matching tenant isolation boundaries."""
+    """List only events inside the authenticated user's authorized scope."""
+    role = _active_role(current_user)
+    event_scope = getattr(current_user, "active_event_id", None)
+    org_scope = getattr(current_user, "active_organization_id", None) or current_user.organization_id
     query = db.query(Event)
-    if organization_id and organization_id not in ("null", "undefined"):
-        query = query.filter(Event.organization_id == organization_id)
-    events = query.all()
-    return [map_event_to_response(e, db) for e in events]
+
+    if _is_platform_admin(current_user):
+        if organization_id and organization_id not in ("null", "undefined"):
+            if not db.query(Organization).filter(Organization.id == organization_id).first():
+                raise HTTPException(status_code=404, detail="Organization not found.")
+            query = query.filter(Event.organization_id == organization_id)
+    elif event_scope:
+        if organization_id and organization_id != org_scope:
+            raise HTTPException(status_code=403, detail="Cross-organization event access denied.")
+        query = query.filter(Event.id == event_scope)
+    elif role == "ORGANIZATION_ADMIN":
+        if not org_scope:
+            raise HTTPException(status_code=403, detail="An organization context is required.")
+        if organization_id and organization_id != org_scope:
+            raise HTTPException(status_code=403, detail="Cross-organization event access denied.")
+        query = query.filter(Event.organization_id == org_scope)
+    elif role == "EVENT_ADMIN":
+        if organization_id and organization_id != org_scope:
+            raise HTTPException(status_code=403, detail="Cross-organization event access denied.")
+        query = query.filter(Event.owner_id == current_user.id)
+    else:
+        raise HTTPException(status_code=403, detail="This role cannot list administrative event data.")
+
+    return [map_event_to_response(e, db) for e in query.all()]
 
 
 @router.get("/{event_id}", response_model=EventResponse)
-def get_event(event_id: str, db: Session = Depends(get_db)):
-    """Retrieve comprehensive event specification."""
+def get_event(event_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Retrieve comprehensive event specification after scope validation."""
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
-        raise HTTPException(status_code=404, detail=f"Event '{event_id}' not found.")
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, current_user)
     return map_event_to_response(event, db)
 
 
@@ -139,79 +195,77 @@ def get_event(event_id: str, db: Session = Depends(get_db)):
 def create_event(
     payload: EventCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"])),
+    current_user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN"])),
 ):
-    """Create a new event entity with associated rounds and rules."""
-    new_id = f"evt-{uuid.uuid4().hex[:8]}"
+    """Create an event in the caller's tenant; only Super Admin can pick a tenant."""
+    if _is_platform_admin(current_user):
+        organization_id = payload.organizationId
+        if organization_id and not db.query(Organization).filter(Organization.id == organization_id).first():
+            raise HTTPException(status_code=404, detail="Organization not found.")
+    else:
+        organization_id = getattr(current_user, "active_organization_id", None) or current_user.organization_id
+        if not organization_id:
+            raise HTTPException(status_code=403, detail="An organization context is required.")
+        if payload.organizationId and payload.organizationId != organization_id:
+            raise HTTPException(status_code=403, detail="An organization administrator cannot create events for another organization.")
 
     def parse_dt(dt_str: str) -> datetime:
         try:
             return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
-        except Exception:
-            return datetime.now(timezone.utc)
+        except (ValueError, AttributeError) as exc:
+            raise HTTPException(status_code=422, detail="Event dates must be valid ISO-8601 timestamps.") from exc
 
+    new_id = f"evt-{uuid.uuid4().hex[:8]}"
     event = Event(
-        id=new_id,
-        organization_id=payload.organizationId or current_user.organization_id,
-        owner_id=current_user.id,
-        is_personal_event=payload.isPersonalEvent,
-        name=payload.name,
-        type=payload.type,
-        description=payload.description,
-        location=payload.location,
-        start_date=parse_dt(payload.startDate),
-        end_date=parse_dt(payload.endDate),
+        id=new_id, organization_id=organization_id, owner_id=current_user.id,
+        is_personal_event=payload.isPersonalEvent, name=payload.name, type=payload.type,
+        description=payload.description, location=payload.location,
+        start_date=parse_dt(payload.startDate), end_date=parse_dt(payload.endDate),
         registration_deadline=parse_dt(payload.registrationDeadline),
-        status="DRAFT",
-        expected_participants=payload.expectedParticipants,
-        total_rounds=payload.totalRounds,
+        status="DRAFT", expected_participants=payload.expectedParticipants, total_rounds=payload.totalRounds,
     )
     db.add(event)
-    db.commit()
-
-    # Create initial round if provided or default
-    rounds_to_create = payload.rounds or [
-        RoundSchema(
-            id=f"rnd-1",
-            name="Round 1 — Initial Evaluation",
-            order=1,
-            status="UPCOMING",
-            startTime=payload.startDate,
-            endTime=payload.endDate,
-            qualifyingQuota=20,
-            criteria=[
-                RoundCriteriaSchema(id="c1", name="Technical Feasibility", maxScore=25, weight=0.25, description="System architecture"),
-                RoundCriteriaSchema(id="c2", name="Impact & Innovation", maxScore=25, weight=0.25, description="Practical value"),
-            ],
-        )
-    ]
-
-    for r_data in rounds_to_create:
-        rnd = Round(
-            id=f"rnd-{uuid.uuid4().hex[:6]}",
-            event_id=new_id,
-            name=r_data.name,
-            round_order=r_data.order,
-            status=r_data.status,
-            start_time=parse_dt(r_data.startTime),
-            end_time=parse_dt(r_data.endTime),
-            qualifying_quota=r_data.qualifyingQuota,
-        )
-        db.add(rnd)
-        db.commit()
-
-        for c_data in r_data.criteria:
-            crit = RoundCriterion(
-                id=f"crit-{uuid.uuid4().hex[:6]}",
-                round_id=rnd.id,
-                name=c_data.name,
-                max_score=c_data.maxScore,
-                weight=c_data.weight,
-                description=c_data.description,
+    try:
+        db.flush()
+        rounds_to_create = payload.rounds or [
+            RoundSchema(
+                id="rnd-1", name="Round 1 — Initial Evaluation", order=1, status="UPCOMING",
+                startTime=payload.startDate, endTime=payload.endDate, qualifyingQuota=20,
+                criteria=[
+                    RoundCriteriaSchema(id="c1", name="Technical Feasibility", maxScore=25, weight=0.25, description="System architecture"),
+                    RoundCriteriaSchema(id="c2", name="Impact & Innovation", maxScore=25, weight=0.25, description="Practical value"),
+                ],
             )
-            db.add(crit)
+        ]
+        for round_data in rounds_to_create:
+            round_record = Round(
+                id=f"rnd-{uuid.uuid4().hex[:6]}", event_id=new_id, name=round_data.name,
+                round_order=round_data.order, status=round_data.status,
+                start_time=parse_dt(round_data.startTime), end_time=parse_dt(round_data.endTime),
+                qualifying_quota=round_data.qualifyingQuota,
+            )
+            db.add(round_record)
+            db.flush()
+            for criterion in round_data.criteria:
+                db.add(RoundCriterion(
+                    id=f"crit-{uuid.uuid4().hex[:6]}", round_id=round_record.id, name=criterion.name,
+                    max_score=criterion.maxScore, weight=criterion.weight, description=criterion.description,
+                ))
+        for slot in payload.timeSlots or []:
+            db.add(TimeSlot(
+                id=f"slot-{uuid.uuid4().hex[:6]}", event_id=new_id, round_id=None, label=slot.label,
+                start_time=parse_dt(slot.startTime), end_time=parse_dt(slot.endTime), capacity=slot.capacity,
+            ))
+        for rule in payload.rules or []:
+            db.add(EventRule(
+                id=f"rule-{uuid.uuid4().hex[:6]}", event_id=new_id, title=rule.title, description=rule.description,
+                category=rule.category, is_mandatory=rule.isMandatory,
+            ))
         db.commit()
-
+        db.refresh(event)
+    except Exception:
+        db.rollback()
+        raise
     return map_event_to_response(event, db)
 
 
