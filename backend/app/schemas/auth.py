@@ -43,7 +43,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
     role: Optional[UserRole] = "PARTICIPANT"
-    organizationId: Optional[str] = "org-01"
+    organizationId: Optional[str] = None
 
 
 class TokenResponse(BaseModel):
@@ -51,7 +51,7 @@ class TokenResponse(BaseModel):
     token: str
     accessToken: str
     refreshToken: str
-    expiresIn: int = 86400
+    expiresIn: int = 900
 
 
 class RoleSwitchRequest(BaseModel):
