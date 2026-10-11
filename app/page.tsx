@@ -50,20 +50,30 @@ export default function HomePage() {
 
     try {
       if (authMode === "LOGIN") {
-        const res = await authApi.login(email, password, "SUPER_ADMIN");
+        // Let the backend resolve the stored role, then route only recognized
+        // administrator accounts to their appropriate workspace.
+        const res = await authApi.login(email, password);
+        if (res.user.role !== "SUPER_ADMIN" && res.user.role !== "ORGANIZATION_ADMIN") {
+          await authApi.logout();
+          setErrorMsg("This page is for the head administrator. Event team members should use their event link to sign in.");
+          return;
+        }
         setCurrentUser(res.user);
-        setCurrentRole("SUPER_ADMIN");
-        router.push("/super-admin");
+        setCurrentRole(res.user.role);
+        router.push(res.user.role === "SUPER_ADMIN" ? "/super-admin" : "/dashboard");
       } else {
+        // Public onboarding provisions a new organization owner. Platform-wide
+        // SUPER_ADMIN access is never self-selected through public registration.
         const res = await authApi.register({
           name,
           email,
           password,
-          role: "SUPER_ADMIN",
+          role: "ORGANIZATION_ADMIN",
+          organizationName,
         });
         setCurrentUser(res.user);
-        setCurrentRole("SUPER_ADMIN");
-        router.push("/super-admin");
+        setCurrentRole(res.user.role);
+        router.push("/dashboard");
       }
     } catch (err: unknown) {
       setErrorMsg(
@@ -439,8 +449,8 @@ export default function HomePage() {
               <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{authMode === "REGISTER" ? "Create the head administrator account." : "Welcome back to EVENTOPS."}</h2>
               <p className="mt-4 max-w-lg text-base leading-7 text-slate-400">
                 {authMode === "REGISTER"
-                  ? "Set up your Super Admin identity first. Once created, you’ll enter the Super Admin dashboard and create your events from there."
-                  : "Sign in with your existing Super Admin account to return to platform and event setup."}
+                  ? "Set up the head administrator account for your organization. Once created, you’ll enter your workspace and create your events from there."
+                  : "Sign in with your existing administrator account to return to platform or organization setup."}
               </p>
               <div className="mt-8 space-y-4">
                 <div className="flex gap-3"><div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-cyan-200"><ShieldCheck className="h-4 w-4" /></div><div><p className="text-sm font-semibold text-white">A single starting point</p><p className="mt-1 text-sm leading-6 text-slate-500">The public page introduces the platform and starts your organization’s event operations workspace.</p></div></div>
@@ -468,7 +478,7 @@ export default function HomePage() {
                     <div className="flex items-center gap-3">
                       <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-violet-300/20 bg-violet-300/10 text-violet-200"><Building2 className="h-5 w-5" /></div>
                       <div>
-                        <h3 className="text-lg font-semibold text-white">{authMode === "REGISTER" ? "Set up your Super Admin account" : "Sign in as Super Admin"}</h3>
+                        <h3 className="text-lg font-semibold text-white">{authMode === "REGISTER" ? "Set up your head administrator account" : "Sign in as administrator"}</h3>
                         <p className="mt-1 text-xs text-slate-500">{authMode === "REGISTER" ? "For the organization head or head administrator." : "Access your existing head administrator workspace."}</p>
                       </div>
                     </div>
