@@ -132,6 +132,8 @@ export const authApi = {
         localStorage.setItem("eventops_token", authToken);
         if (data.user.organizationId) {
           localStorage.setItem("eventops_org_id", data.user.organizationId);
+        } else {
+          localStorage.removeItem("eventops_org_id");
         }
       } catch (_) {}
     }
@@ -162,6 +164,11 @@ export const authApi = {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("eventops_token", authToken);
+        if (data.user.organizationId) {
+          localStorage.setItem("eventops_org_id", data.user.organizationId);
+        } else {
+          localStorage.removeItem("eventops_org_id");
+        }
       } catch (_) {}
     }
 
@@ -193,6 +200,11 @@ export const authApi = {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("eventops_token", authToken);
+        if (res.user.organizationId) {
+          localStorage.setItem("eventops_org_id", res.user.organizationId);
+        } else {
+          localStorage.removeItem("eventops_org_id");
+        }
       } catch (_) {}
     }
 
@@ -219,7 +231,56 @@ export const authApi = {
     return { token: authToken, role: res.role };
   },
 
-  async verifyInvite(inviteCode: string): Promise<{ valid: boolean; role?: UserRole; organizationId?: string; organizationName?: string; message: string }> {
+  async createEventInvitation(data: {
+    eventId: string;
+    email: string;
+    role: UserRole;
+    expiresInHours?: number;
+  }): Promise<{
+    invitationId: string;
+    eventId: string;
+    email: string;
+    role: UserRole;
+    invitationToken: string;
+    expiresAt: string;
+    message: string;
+  }> {
+    return apiRequest("/auth/invitations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async redeemEventInvitation(data: {
+    invitationToken: string;
+    password: string;
+    name?: string;
+  }): Promise<{ user: User; token: string }> {
+    const res = await apiRequest<AuthResponse>("/auth/event-invitations/redeem", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    const authToken = res.accessToken || res.token;
+    if (typeof window !== "undefined") {
+      localStorage.setItem("eventops_token", authToken);
+      if (res.user.organizationId) {
+        localStorage.setItem("eventops_org_id", res.user.organizationId);
+      } else {
+        localStorage.removeItem("eventops_org_id");
+      }
+    }
+    return { user: res.user, token: authToken };
+  },
+
+  async verifyInvite(inviteCode: string): Promise<{
+    valid: boolean;
+    role?: UserRole;
+    organizationId?: string;
+    organizationName?: string;
+    eventId?: string;
+    eventName?: string;
+    message: string;
+  }> {
     return apiRequest("/auth/verify-invite", {
       method: "POST",
       body: JSON.stringify({ inviteCode }),
@@ -227,15 +288,18 @@ export const authApi = {
   },
 
   async verifyOtp(_email: string, _otp: string): Promise<boolean> {
-    return true;
+    throw new Error("Email verification is not configured on the backend yet. No OTP was verified.");
   },
 
   async forgotPassword(_email: string): Promise<{ success: boolean; message: string }> {
-    return { success: true, message: "Password reset instructions dispatched to your verified email." };
+    return {
+      success: false,
+      message: "Secure password recovery is not configured yet. No reset email was sent.",
+    };
   },
 
   async resetPassword(_password: string): Promise<{ success: boolean }> {
-    return { success: true };
+    return { success: false };
   },
 
   async logout(): Promise<void> {
