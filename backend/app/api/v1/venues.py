@@ -3,9 +3,10 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.entities import Venue, Bench, Team
+from app.models.entities import Venue, Bench, Team, Event
 from app.schemas.entities import VenueCreate, VenueResponse, BenchResponse
-from app.api.deps import require_roles, User
+from app.api.deps import require_roles, get_current_user, User
+from app.api.v1.events import require_event_scope
 
 router = APIRouter()
 
@@ -45,18 +46,26 @@ def map_venue_to_response(venue: Venue, db: Session) -> VenueResponse:
 
 
 @router.get("", response_model=List[VenueResponse])
-def list_venues(eventId: str = "evt-01", db: Session = Depends(get_db)):
-    """List venues and hall layouts for an event."""
-    venues = db.query(Venue).filter(Venue.event_id == eventId).all()
+def list_venues(eventId: str = "evt-01", db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+    """List venues only for a verified event context."""
+    event = db.query(Event).filter(Event.id == eventId).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, actor)
+    venues = db.query(Venue).filter(Venue.event_id == event.id).all()
     return [map_venue_to_response(v, db) for v in venues]
 
 
 @router.get("/{venue_id}", response_model=VenueResponse)
-def get_venue(venue_id: str, db: Session = Depends(get_db)):
-    """Retrieve details and bench allocation grid for a venue."""
+def get_venue(venue_id: str, db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+    """Retrieve a venue only after event-scope validation."""
     venue = db.query(Venue).filter(Venue.id == venue_id).first()
     if not venue:
         raise HTTPException(status_code=404, detail="Venue not found.")
+    event = db.query(Event).filter(Event.id == venue.event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, actor)
     return map_venue_to_response(venue, db)
 
 
@@ -64,9 +73,13 @@ def get_venue(venue_id: str, db: Session = Depends(get_db)):
 def create_venue(
     payload: VenueCreate,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"])),
+    actor: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"])),
 ):
-    """Create a new venue and automatically generate bench slots."""
+    """Create a venue only for an event the current actor can manage."""
+    event = db.query(Event).filter(Event.id == payload.eventId).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, actor)
     new_id = f"ven-{uuid.uuid4().hex[:6]}"
     venue = Venue(
         id=new_id,
@@ -103,8 +116,15 @@ def create_venue(
 
 
 @router.get("/{venue_id}/benches", response_model=List[BenchResponse])
-def list_benches(venue_id: str, db: Session = Depends(get_db)):
-    """Retrieve seating benches for a venue."""
+def list_benches(venue_id: str, db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+    """Retrieve benches only after validating venue's event scope."""
+    venue = db.query(Venue).filter(Venue.id == venue_id).first()
+    if not venue:
+        raise HTTPException(status_code=404, detail="Venue not found.")
+    event = db.query(Event).filter(Event.id == venue.event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, actor)
     benches = db.query(Bench).filter(Bench.venue_id == venue_id).all()
     result = []
     for b in benches:
