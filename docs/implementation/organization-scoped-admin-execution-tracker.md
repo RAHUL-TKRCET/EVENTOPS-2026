@@ -1,33 +1,40 @@
-# Implementation Plan Execution Tracker — Organization-Scoped Admin
+# Organization-Scoped Admin — Execution Tracker
 
-## Phase 0: Baseline and root-cause diagnosis
-- [x] Inspect frontend shell, role access map, event API, backend authentication/dependency path, judge API client, and judge screens.
-- [x] Re-check live Supabase table/policy posture and current advisories.
-- [ ] Establish a verified, safe implementation/test environment for code changes and capture all build/test results.
+## Completed and verified
+- [x] Organization Admin management shell suppresses the persistent sidebar and sidebar toggle on the explicitly defined management routes, while preserving portal/login shells.
+- [x] Event list uses the scoped backend API and has loading/error/empty states.
+- [x] Mock judge API replaced with persisted FastAPI-backed list/create/update/assignment endpoints.
+- [x] Judge form uses real authorized event results and submits selected event/email.
+- [x] Removed false claim that invite email was sent; UI says delivery/account activation are not configured.
+- [x] Judge APIs validate the event scope and ensure assigned teams belong to the event.
+- [x] Event list/detail/create/update/member endpoints now require authentication and enforce org/event scope.
+- [x] Evaluation submission requires an event-scoped JUDGE session and matching DB judge/event/team assignment.
+- [x] Teams, check-in/QR, venue/bench, attendance, allocation, incident, inventory distribution, and analytics routes now validate event scope.
+- [x] Seed J001 judge record linked to J001 JUDGE account instead of Super Admin.
+- [x] Authorization regression tests added to CI. Run: https://github.com/RAHUL-TKRCET/EVENTOPS-2026/actions/runs/38176750011 — 18 passed.
+- [x] Frontend event-list workflow succeeded: https://github.com/RAHUL-TKRCET/EVENTOPS-2026/actions/runs/38176315111.
+- [x] Supabase grant-hardening migration applied to project kwttdfgxstazmtzpcjnu; matching SQL committed under supabase/migrations/20261011213317_lock_down_public_data_api_grants.sql.
+- [x] Verified zero table grants to anon/authenticated, including on public.users; no public routines were found.
 
-## Current verified findings
-1. `components/layout/AppShell.tsx` only hides the sidebar for ORGANIZATION_ADMIN at the exact `/dashboard` route. `Topbar.tsx` uses the same exact-path condition for its hamburger and context header.
-2. `lib/api/judges.ts` is entirely mocked: `getAll`, `getById`, `create`, and `updateStatus` operate on `mockJudges`; there is no backend judges router registered in `backend/app/api/v1/api.py`.
-3. `app/judges/page.tsx` directly initializes from `mockJudges`; `app/judges/create/page.tsx` uses `mockEvents`, hardcoded demo defaults, never sends the form email, ignores the form's email/phone/event ID in its create call, and displays “invitation successfully dispatched” on mock promise resolution.
-4. FastAPI has tenant-scope issues beyond the UI:
-   - `get_current_tenant_user` accepts an `x-organization-id` from client and returns the same user when it matches `current_user.organization_id`, without checking the active org membership in that branch.
-   - `/events` listing checks the client `organization_id` only if supplied; omitted scope can return every event after authentication, even when tenant dependency was applied.
-   - Event detail, update, and member listing handlers do not enforce organization/event scope.
-   - Event creation accepts payload.organizationId (untrusted) and allows EVENT_ADMIN, but doesn't validate organization/event ownership.
-   - Evaluation submission obtains any judge record for the current user or falls back to the user ID, without checking JUDGE role, assigned event, event/team match, or user assignment. This must be fixed before declaring role separation secure.
-5. Live Supabase project `kwttdfgxstazmtzpcjnu` currently has 24 public tables with RLS enabled and 0 RLS policies. The Security Advisor reports 24 `rls_enabled_no_policy` findings. Information-schema grants query shows broad table privileges for both `anon` and `authenticated`, including sensitive `users`; `users.password_hash` exists. Migration API reports no tracked migrations. Performance Advisor reports 20 unindexed FK findings and 16 unused-index findings. Do not blindly drop indexes or apply blanket policies. Supabase RLS custom claims must not be assumed to match the EVENTOPS custom PyJWT, and the API's DB role must be verified.
-6. Repo: `main`, latest observed commit SHA `3da3b5c282ec4e6eaafebb188c4a7b62497631dc`. GitHub file-content connector reads/writes succeed for existing simple files, but a previous attempt to create an issue/file with the same account failed with `link_id must identify an eligible linked account`. No repository code changes have been committed in this execution yet.
+## Root-cause findings
+1. lib/api/judges.ts was mock-only and no backend judges router was registered. It now calls persisted APIs.
+2. The judge creation screen used demo events, did not submit the selected event reliably, and falsely claimed email dispatch. It now saves pending enrollment and gives honest delivery status.
+3. Multiple backend event-owned endpoints were unauthenticated and/or did not check object-level event scope. Explicit guards have been added across the event, scoring, team/check-in, venue, attendance, allocation, incident, resource, and analytics routers.
+4. EVENTOPS issues custom PyJWTs and has no Supabase JS client in its browser bundle. FastAPI uses SQLAlchemy via private DATABASE_URL. Supabase custom auth claims must not be assumed available through auth.jwt().
+5. Supabase has 24 public tables with RLS enabled but no policies. Direct anon/authenticated Data API grants were revoked as a least-privilege boundary rather than applying policies that expect a Supabase Auth JWT the app does not use. RLS-enabled/no-policy notices remain informational; client roles no longer have table privileges.
 
-## Ordered work
-- [ ] Build/secure organization/event ownership primitives and add regression tests.
-- [ ] Fix event create/list/detail/update/members tenant authorization.
-- [ ] Restrict evaluation submission to authenticated JUDGE with a DB-backed Judge row assigned to the same event/team; protect score retrieval endpoints as needed.
-- [ ] Add persistent backend judges list/create/detail/status and event assignment endpoints; add appropriate schemas and router registration.
-- [ ] Replace mocked judge data/event choices with live API data; make invite messaging match what backend confirms.
-- [ ] Hide sidebar across the complete explicit Organization Admin management route group and provide context navigation.
-- [ ] Test frontend build, backend tests, cross-org access and judge scoring isolation.
-- [ ] Create a checked-in migration/RLS matrix only after identity and DB privilege design is verified; stage RLS changes first, then production with backups and policy tests.
-- [ ] Verify deployment SHA, workflow checks, smoke tests, and fresh Supabase advisors.
+## Not yet complete — next work
+- [ ] Add database-backed invitation lifecycle: random hashed single-use tokens, expiry/revocation, event/org-scoped role allow-list, acceptance endpoint, and copy-link/email-not-configured UI. Current judge enrollment stores a pending record but does not create an invitation token or account.
+- [ ] Add organization member/role APIs and a real People & Roles UI; dashboard card currently routes safely to events.
+- [ ] Add end-to-end tests for org A/org B isolation, persistent judge enrollment, and event-scoped judge scoring. The CI suite currently runs registration plus helper/authentication-gate tests; legacy test_api.py is not in CI and includes anonymous-access expectations that need updating.
+- [ ] Verify backend deployment after the latest endpoint-guard batch and smoke-test the deployed frontend/backend.
+- [ ] Reconcile all Supabase tables to the ORM and establish the ongoing migration workflow. Do not create generic JWT policies until identity mapping or a claims bridge is verified.
+- [ ] Audit any remaining API routes/functions for missing object scope and re-run Supabase Security/Performance Advisors.
 
-## Acceptance gate
-No phase is marked complete until code, focused tests, RLS behavior, and deployment evidence demonstrate the intended behavior. Do not apply one-size-fits-all policies or change the production schema based on unverified custom JWT assumptions.
+## Authorization contract
+- Organization Admin can manage their organization/events/people/judges/assignments, but cannot score as a judge.
+- Only an assigned event-session judge can submit a score for assigned work in that event.
+- Only an unscoped SUPER_ADMIN session has platform-wide access.
+- Client organization headers are filters, never an authorization authority.
+- Persisting enrollment is not email delivery or account activation.
+- Do not mark the work complete until both allowed and denied paths plus deployment evidence are tested.
