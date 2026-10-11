@@ -10,6 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 from app.core.database import Base, engine
+from app.core.security import create_refresh_token
+from app.api.v1.websocket import can_subscribe_to_channel, validate_access_token
 from app.database.seed import seed_database
 
 
@@ -129,6 +131,27 @@ def test_event_roster_is_not_public():
     """The member list exposes contact details and therefore requires authorization."""
     response = client.get("/api/v1/events/evt-01/members")
     assert response.status_code == 401
+
+
+def test_websocket_rejects_refresh_tokens():
+    """The realtime endpoint must not accept refresh JWTs as access credentials."""
+    refresh = create_refresh_token("usr-super")
+    assert validate_access_token(refresh) is None
+
+
+def test_websocket_denies_unscoped_or_unknown_channels():
+    """Realtime subscriptions must be event-scoped and role-authorized."""
+    login_res = client.post("/api/v1/auth/login", json={
+        "email": "aarav.sharma@tkrcet.ac.in",
+        "password": "EventOps@2026",
+        "role": "PARTICIPANT",
+    })
+    assert login_res.status_code == 200
+    claims = validate_access_token(login_res.json()["accessToken"])
+    assert claims is not None
+    assert can_subscribe_to_channel(claims, "attendance:live") is False
+    assert can_subscribe_to_channel(claims, "attendance:evt-01:live") is False
+    assert can_subscribe_to_channel(claims, "events:global:announcements") is False
 
 
 def test_refresh_token_cannot_access_protected_endpoint():
