@@ -197,3 +197,53 @@ def test_expired_invitation_is_persisted_as_expired_and_rejected():
     finally:
         app.dependency_overrides.pop(get_db, None)
         engine.dispose()
+
+
+def test_invitation_list_and_revoke_are_limited_to_authorized_event_scope():
+    client, Session, engine = _seeded_client()
+    try:
+        _seed_org_event(Session)
+        headers = {"Authorization": f"Bearer {_token('usr-owner', 'ORGANIZATION_ADMIN', 'org-invite')}"}
+        created = client.post("/api/v1/invitations", headers=headers, json={
+            "email": "list-revoke@example.com", "role": "VOLUNTEER", "eventId": "evt-invite",
+        })
+        assert created.status_code == 201, created.text
+        item = created.json()
+
+        listed = client.get("/api/v1/invitations?eventId=evt-invite", headers=headers)
+        assert listed.status_code == 200, listed.text
+        assert any(row["id"] == item["id"] and row["email"] == item["email"] for row in listed.json())
+
+        denied = client.get("/api/v1/invitations?eventId=evt-other", headers=headers)
+        # Unknown/cross-tenant event identifiers must not disclose another tenant's invitation set.
+        assert denied.status_code in {403, 404}
+
+        db = Session()
+        other_org = Organization(id="org-other", name="Other Org", type="Organization", country="India", city="Hyderabad")
+        other_owner = User(id="usr-other-owner", name="Other Owner", email="other-owner@example.com", password_hash=get_password_hash("Owner-password-123"), role="ORGANIZATION_ADMIN", organization_id="org-other")
+        other_event = Event(id="evt-other", organization_id="org-other", owner_id="usr-other-owner", name="Other Event", type="HACKATHON", start_date=datetime.now(timezone.utc) + timedelta(days=1), end_date=datetime.now(timezone.utc) + timedelta(days=2), registration_deadline=datetime.now(timezone.utc) + timedelta(hours=12))
+        other_membership = OrganizationMembership(id="membership-other-owner", user_id="usr-other-owner", organization_id="org-other", role="ORGANIZATION_ADMIN", status="ACTIVE")
+        db.add_all([other_org, other_owner, other_event, other_membership])
+        db.commit()
+        db.close()
+
+        other_headers = {"Authorization": f"Bearer {_token('usr-other-owner', 'ORGANIZATION_ADMIN', 'org-other')}"}
+        other_created = client.post("/api/v1/invitations", headers=other_headers, json={
+            "email": "other@example.com", "role": "JUDGE", "eventId": "evt-other",
+        })
+        assert other_created.status_code == 201, other_created.text
+
+        cross_tenant_revoke = client.post(
+            f"/api/v1/invitations/{other_created.json()['id']}/revoke",
+            headers=headers,
+        )
+        assert cross_tenant_revoke.status_code == 403
+
+        revoked = client.post(f"/api/v1/invitations/{item['id']}/revoke", headers=headers)
+        assert revoked.status_code == 200 and revoked.json()["status"] == "REVOKED"
+        list_after_revoke = client.get("/api/v1/invitations?eventId=evt-invite", headers=headers)
+        assert list_after_revoke.status_code == 200
+        assert next(row for row in list_after_revoke.json() if row["id"] == item["id"])["status"] == "REVOKED"
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        engine.dispose()
