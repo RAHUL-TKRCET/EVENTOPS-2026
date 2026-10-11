@@ -174,7 +174,7 @@ export const authApi = {
   async register(data: {
     name: string;
     email: string;
-    password?: string;
+    password: string;
     role?: UserRole;
     organizationId?: string;
     organizationName?: string;
@@ -184,7 +184,7 @@ export const authApi = {
       body: JSON.stringify({
         name: data.name,
         email: data.email.trim().toLowerCase(),
-        password: data.password || "Password@2026",
+        password: data.password,
         role: data.role || "PARTICIPANT",
         ...(data.organizationId ? { organizationId: data.organizationId } : {}),
         ...(data.organizationName ? { organizationName: data.organizationName.trim() } : {}),
@@ -195,6 +195,11 @@ export const authApi = {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("eventops_token", authToken);
+        if (res.user.organizationId) {
+          localStorage.setItem("eventops_org_id", res.user.organizationId);
+        } else {
+          localStorage.removeItem("eventops_org_id");
+        }
       } catch (_) {}
     }
 
