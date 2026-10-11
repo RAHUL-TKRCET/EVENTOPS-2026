@@ -205,6 +205,8 @@ def create_event(
         raise HTTPException(status_code=403, detail="Only a platform admin or organization admin can create events.")
 
     target_org_id = payload.organizationId or getattr(current_user, "active_organization_id", None) or current_user.organization_id
+    if active_role == "ORGANIZATION_ADMIN" and not target_org_id:
+        raise HTTPException(status_code=403, detail="An authorized organization scope is required.")
     if active_role == "ORGANIZATION_ADMIN":
         membership = db.query(OrganizationMembership).filter(
             OrganizationMembership.user_id == current_user.id,
