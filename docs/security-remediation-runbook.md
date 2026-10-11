@@ -87,6 +87,15 @@ The DB uses varchar IDs in `public.users` and its own password/user model. Do no
 | Tests pass, backup verified, advisor reviewed | Request explicit release approval |
 
 
+## PostgreSQL CI test path (added 2026-10-11)
+
+- [x] Added a separate GitHub Actions job using a disposable PostgreSQL 16 service; it runs the existing backend suite against PostgreSQL.
+- [x] Added a portable SQL assertion gate at `supabase/tests/rls_privilege_gate.assertions.sql`. It checks RLS is enabled on every public base/partitioned table and verifies `anon`/`authenticated` lack direct table privileges.
+- [x] The CI job creates Supabase-style API roles and applies the invitation-table and default-deny proposal only inside its disposable PostgreSQL container.
+- [ ] Wait for the new GitHub Actions run and fix any failures.
+- [ ] The CI service tests schema/SQL behavior in vanilla PostgreSQL. It does not prove the deployed FastAPI database role is subject to RLS, does not reproduce every Supabase-managed behavior, and does not validate production grants/identities. Those remain release gates.
+- [ ] Main Supabase data has not been truncated or altered.
+
 ## Current implementation status (2026-10-11)
 
 - [x] Feature branch and draft PR opened; review this branch before merging.
