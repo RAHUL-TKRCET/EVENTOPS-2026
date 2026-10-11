@@ -65,6 +65,7 @@ def test_invitation_acceptance_creates_account_event_assignment_and_audit_log():
         assert created.status_code == 201, created.text
         data = created.json()
         assert data["emailDelivery"] == "NOT_CONFIGURED"
+        assert data["acceptanceUrl"] is None
         assert data["token"]
         db = Session()
         invitation = db.query(Invitation).filter(Invitation.id == data["id"]).one()
@@ -137,6 +138,36 @@ def test_revoked_invitation_cannot_be_verified_or_accepted():
             "token": item["token"], "name": "Revoked Judge", "password": "Judge-password-123",
         })
         assert accepted.status_code == 410
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        engine.dispose()
+
+
+def test_existing_account_can_accept_without_changing_existing_password_or_name():
+    client, Session, engine = _seeded_client()
+    try:
+        _seed_org_event(Session)
+        db = Session()
+        existing = User(id="usr-existing", name="Existing User", email="existing-judge@example.com", password_hash=get_password_hash("Original-password-123"), role="PARTICIPANT", organization_id="org-invite")
+        db.add(existing)
+        db.commit()
+        db.close()
+        headers = {"Authorization": f"Bearer {_token('usr-owner', 'ORGANIZATION_ADMIN', 'org-invite')}"}
+        created = client.post("/api/v1/invitations", headers=headers, json={
+            "email": "existing-judge@example.com", "role": "JUDGE", "eventId": "evt-invite",
+        })
+        assert created.status_code == 201, created.text
+        token = created.json()["token"]
+        accepted = client.post("/api/v1/invitations/accept", json={"token": token})
+        assert accepted.status_code == 200, accepted.text
+        db = Session()
+        user = db.query(User).filter(User.id == "usr-existing").one()
+        member = db.query(EventMember).filter(EventMember.user_id == user.id, EventMember.event_id == "evt-invite").one()
+        assert user.name == "Existing User"
+        assert member.role == "JUDGE" and member.status == "ACTIVE"
+        from app.core.security import verify_password
+        assert verify_password("Original-password-123", user.password_hash)
+        db.close()
     finally:
         app.dependency_overrides.pop(get_db, None)
         engine.dispose()
