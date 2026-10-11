@@ -45,17 +45,18 @@ export default function HomePage() {
       if (authMode === "LOGIN") {
         const res = await authApi.login(email, password, "ORGANIZATION_ADMIN");
         setCurrentUser(res.user);
-        setCurrentRole("EVENT_ADMIN");
+        setCurrentRole("ORGANIZATION_ADMIN");
         router.push("/dashboard");
       } else {
         const res = await authApi.register({
           name,
           email,
           password,
-          role: "EVENT_ADMIN",
+          role: "ORGANIZATION_ADMIN",
+          organizationName,
         });
         setCurrentUser(res.user);
-        setCurrentRole("EVENT_ADMIN");
+        setCurrentRole("ORGANIZATION_ADMIN");
         router.push("/dashboard");
       }
     } catch (err: any) {
@@ -151,13 +152,13 @@ export default function HomePage() {
 
           {/* Main Action Section: Organization Admin Auth Card vs Already Logged In */}
           <div className="max-w-md mx-auto">
-            {currentUser && currentUser.role === "EVENT_ADMIN" ? (
+            {currentUser && currentUser.role === "ORGANIZATION_ADMIN" ? (
               <div className="p-8 rounded-3xl border border-blue-500/40 bg-white/[0.04] shadow-2xl backdrop-blur-md text-center space-y-4">
                 <div className="w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 mx-auto">
                   <ShieldCheck className="w-7 h-7" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white font-mono">Active Event Admin Session</h3>
+                  <h3 className="text-lg font-bold text-white font-mono">Active Organization Owner Session</h3>
                   <p className="text-xs text-slate-400 mt-1">
                     Logged in as <span className="text-blue-300 font-semibold">{currentUser.name}</span> ({currentUser.email})
                   </p>
@@ -190,7 +191,7 @@ export default function HomePage() {
                         : "text-slate-400 hover:text-white"
                     }`}
                   >
-                    Event Admin Sign In
+                    Organization Owner Sign In
                   </button>
                   <button
                     type="button"
@@ -210,11 +211,11 @@ export default function HomePage() {
 
                 <div className="text-center space-y-1">
                   <h3 className="text-lg font-bold text-white font-mono">
-                    {authMode === "LOGIN" ? "Organization Owner Authentication" : "Register Event Admin Account"}
+                    {authMode === "LOGIN" ? "Organization Owner Authentication" : "Register Organization Owner Account"}
                   </h3>
                   <p className="text-xs text-slate-400">
                     {authMode === "LOGIN"
-                      ? "Sign into your verified Event Admin workspace to operate your events."
+                      ? "Sign into your verified Organization Owner workspace to operate your events."
                       : "Create your organization account, then create events and assign event-specific staff roles."}
                   </p>
                 </div>
@@ -271,7 +272,7 @@ export default function HomePage() {
                     isLoading={isLoading}
                     rightIcon={<ArrowRight className="w-4 h-4" />}
                   >
-                    {authMode === "LOGIN" ? "Sign In as Event Admin" : "Create Main Event Admin Account"}
+                    {authMode === "LOGIN" ? "Sign In to Organization" : "Create Organization Account"}
                   </Button>
                 </form>
 
