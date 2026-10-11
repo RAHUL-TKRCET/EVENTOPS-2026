@@ -62,8 +62,6 @@ class Settings(BaseSettings):
                 object.__setattr__(self, "JWT_SECRET", secrets.token_urlsafe(48))
             if len(self.QR_HMAC_SECRET) < 32 or self.QR_HMAC_SECRET in insecure_defaults:
                 object.__setattr__(self, "QR_HMAC_SECRET", secrets.token_urlsafe(48))
-            if self.DB_PASSWORD == "eventops_password":
-                object.__setattr__(self, "DB_PASSWORD", secrets.token_urlsafe(24))
         return self
 
     model_config = {
