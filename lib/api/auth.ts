@@ -206,10 +206,10 @@ export const authApi = {
     return apiRequest<User>("/auth/me");
   },
 
-  async switchRole(targetRole: UserRole): Promise<{ token: string; role: UserRole }> {
+  async switchRole(targetRole: UserRole, eventId?: string): Promise<{ token: string; role: UserRole }> {
     const res = await apiRequest<{ token: string; accessToken: string; role: UserRole }>("/auth/switch-role", {
       method: "POST",
-      body: JSON.stringify({ targetRole }),
+      body: JSON.stringify({ targetRole, eventId }),
     });
 
     const authToken = res.accessToken || res.token;
