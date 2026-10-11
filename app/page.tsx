@@ -71,9 +71,9 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-blue-500 selection:text-white">
+    <div className="min-h-screen bg-[#0b1120] text-slate-100 selection:bg-blue-500 selection:text-white">
       {/* Top Navbar */}
-      <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40">
+      <header className="border-b border-slate-800/80 bg-[#0b1120]/80 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-mono font-bold text-white text-lg shadow-lg shadow-blue-600/30">
@@ -129,7 +129,7 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden pt-12 pb-20 md:pt-20 md:pb-28">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(99,102,241,0.15),rgba(255,255,255,0))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(59,130,246,0.07),rgba(255,255,255,0))]" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-12">
           <div className="text-center max-w-3xl mx-auto space-y-4">
@@ -139,7 +139,7 @@ export default function HomePage() {
             </div>
             <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight font-mono text-white leading-tight">
               Run the event, <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-blue-400 to-yellow-400">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-white to-blue-300">
                 not the paperwork.
               </span>
             </h1>
@@ -151,7 +151,7 @@ export default function HomePage() {
           {/* Main Action Section: Event Admin Auth Card vs Already Logged In */}
           <div className="max-w-md mx-auto">
             {currentUser && currentUser.role === "EVENT_ADMIN" ? (
-              <div className="p-8 rounded-3xl border border-blue-500/40 bg-slate-900/90 shadow-2xl backdrop-blur-md text-center space-y-4">
+              <div className="p-8 rounded-3xl border border-blue-500/40 bg-white/[0.04] shadow-2xl backdrop-blur-md text-center space-y-4">
                 <div className="w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 mx-auto">
                   <ShieldCheck className="w-7 h-7" />
                 </div>
@@ -174,9 +174,9 @@ export default function HomePage() {
                 </div>
               </div>
             ) : (
-              <div className="p-8 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl backdrop-blur-md space-y-6">
+              <div className="p-8 rounded-3xl border border-slate-800 bg-white/[0.04] shadow-2xl backdrop-blur-md space-y-6">
                 {/* Tabs */}
-                <div className="flex rounded-xl bg-slate-950 p-1 border border-slate-800">
+                <div className="flex rounded-xl bg-[#0b1120] p-1 border border-slate-800">
                   <button
                     type="button"
                     onClick={() => {
@@ -287,7 +287,7 @@ export default function HomePage() {
                 placeholder="e.g. evt-01"
                 value={eventCode}
                 onChange={(e) => setEventCode(e.target.value)}
-                className="w-full sm:w-32 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500"
+                className="w-full sm:w-32 px-3 py-1.5 rounded-lg bg-[#0b1120] border border-slate-800 text-xs font-mono text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500"
               />
               <Button size="sm" variant="outline" type="submit" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
                 Open
@@ -298,7 +298,7 @@ export default function HomePage() {
       </section>
 
       {/* Core Architecture Capabilities */}
-      <section className="border-t border-slate-800/80 bg-slate-950/60 py-16">
+      <section className="border-t border-slate-800/80 bg-[#0b1120]/60 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
           <div className="text-center max-w-xl mx-auto space-y-2">
             <h2 className="text-xl sm:text-2xl font-bold font-mono text-white">
