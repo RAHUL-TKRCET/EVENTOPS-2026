@@ -14,33 +14,29 @@ export default function RegisterPage() {
   const router = useRouter();
   const { setCurrentUser, setCurrentRole } = useAppStore();
   const [name, setName] = useState("");
+  const [organizationName, setOrganizationName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [accountType, setAccountType] = useState<"EVENT_ADMIN" | "ORGANIZATION_CREATOR" | "PARTICIPANT">("EVENT_ADMIN");
+  const [accountType, setAccountType] = useState<"ORGANIZATION_CREATOR" | "PARTICIPANT">("ORGANIZATION_CREATOR");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const assignedRole: UserRole =
-        accountType === "EVENT_ADMIN"
-          ? "EVENT_ADMIN"
-          : accountType === "ORGANIZATION_CREATOR"
-          ? "ORGANIZATION_ADMIN"
-          : "PARTICIPANT";
+      const assignedRole: UserRole = accountType === "ORGANIZATION_CREATOR" ? "ORGANIZATION_ADMIN" : "PARTICIPANT";
 
-      const res = await authApi.register({ name, email, password, role: assignedRole });
+      const res = await authApi.register({
+        name,
+        email,
+        password,
+        role: assignedRole,
+        organizationName: accountType === "ORGANIZATION_CREATOR" ? organizationName : undefined,
+      });
       setCurrentUser(res.user);
       setCurrentRole(assignedRole);
+      router.push(accountType === "ORGANIZATION_CREATOR" ? "/dashboard" : "/participant");
 
-      if (accountType === "ORGANIZATION_CREATOR") {
-        router.push("/onboarding");
-      } else if (accountType === "EVENT_ADMIN") {
-        router.push("/dashboard");
-      } else {
-        router.push("/participant");
-      }
     } finally {
       setIsLoading(false);
     }
@@ -63,21 +59,7 @@ export default function RegisterPage() {
       {/* Account Type Selection */}
       <div className="space-y-2">
         <label className="text-xs font-semibold text-slate-300 block">Registration Role</label>
-        <div className="grid grid-cols-3 gap-2.5">
-          <button
-            type="button"
-            onClick={() => setAccountType("EVENT_ADMIN")}
-            className={`p-3 rounded-xl border text-left transition cursor-pointer ${
-              accountType === "EVENT_ADMIN"
-                ? "bg-indigo-600/20 border-indigo-500 text-white"
-                : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700"
-            }`}
-          >
-            <ShieldCheck className="w-5 h-5 text-indigo-400 mb-1" />
-            <div className="text-xs font-bold leading-tight">Event Admin</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">Direct Event Operations</div>
-          </button>
-
+        <div className="grid grid-cols-2 gap-2.5">
           <button
             type="button"
             onClick={() => setAccountType("ORGANIZATION_CREATOR")}
@@ -114,12 +96,22 @@ export default function RegisterPage() {
         <div>
           <span className="font-semibold text-slate-200">Joining as Judge, Volunteer, or Staff?</span>
           <p className="mt-0.5 text-slate-400">
-            Jury and staff roles are access-controlled via invitation tokens issued by your Event Director.
+            Event-specific roles are assigned by an authorized event administrator and verified on the event login page.
           </p>
         </div>
       </div>
 
       <form onSubmit={handleRegister} className="space-y-4">
+        {accountType === "ORGANIZATION_CREATOR" && (
+          <Input
+            label="Organization / Institution Name"
+            required
+            value={organizationName}
+            onChange={(e) => setOrganizationName(e.target.value)}
+            placeholder="e.g. TKR College of Engineering"
+          />
+        )}
+
         <Input
           label="Full Legal / Professional Name"
           required
@@ -154,10 +146,8 @@ export default function RegisterPage() {
           isLoading={isLoading}
           rightIcon={<ArrowRight className="w-4 h-4" />}
         >
-          {accountType === "EVENT_ADMIN"
-            ? "Create Event Admin Account"
-            : accountType === "ORGANIZATION_CREATOR"
-            ? "Continue to Organization Setup"
+          {accountType === "ORGANIZATION_CREATOR"
+            ? "Create Organization Account"
             : "Create Participant Account"}
         </Button>
       </form>
