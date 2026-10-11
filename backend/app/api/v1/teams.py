@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import generate_qr_token
 from app.core.events import manager as realtime_manager
-from app.models.entities import Team, TeamMember, AttendanceRecord, Venue, Bench, User
+from app.models.entities import Team, TeamMember, AttendanceRecord, Venue, Bench, User, Event, Judge
 from app.schemas.entities import (
     TeamCreate,
     TeamResponse,
@@ -16,6 +16,7 @@ from app.schemas.entities import (
     QRScanRequest,
 )
 from app.api.deps import get_current_user
+from app.api.v1.events import _active_role, require_event_scope
 
 router = APIRouter()
 
@@ -73,25 +74,66 @@ def map_team_to_response(team: Team, db: Session) -> TeamResponse:
     )
 
 
+def _load_team_event(db: Session, team_id: str) -> tuple[Team, Event]:
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found.")
+    event = db.query(Event).filter(Event.id == team.event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    return team, event
+
+
+def _require_team_view(db: Session, team: Team, event: Event, actor: User) -> None:
+    role = _active_role(actor)
+    if role == "JUDGE":
+        if getattr(actor, "active_event_id", None) != event.id:
+            raise HTTPException(status_code=403, detail="Team access denied outside the assigned event.")
+        judge = db.query(Judge).filter(Judge.user_id == actor.id, Judge.event_id == event.id).first()
+        if not judge or (judge.id not in (team.assigned_judges or []) and team.id not in (judge.assigned_teams or [])):
+            raise HTTPException(status_code=403, detail="This judge is not assigned to the selected team.")
+        return
+    require_event_scope(event, actor)
+
+
 @router.get("", response_model=List[TeamResponse])
-def list_teams(eventId: str = "evt-01", db: Session = Depends(get_db)):
-    """List teams registered for an event."""
-    teams = db.query(Team).filter(Team.event_id == eventId).all()
+def list_teams(eventId: str = "evt-01", db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+    """List only teams from an event authorized for the active session."""
+    event = db.query(Event).filter(Event.id == eventId).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    if _active_role(actor) == "JUDGE":
+        if getattr(actor, "active_event_id", None) != event.id:
+            raise HTTPException(status_code=403, detail="Team access denied outside the assigned event.")
+    else:
+        require_event_scope(event, actor)
+    teams = db.query(Team).filter(Team.event_id == event.id).all()
+    if _active_role(actor) == "JUDGE":
+        judge = db.query(Judge).filter(Judge.user_id == actor.id, Judge.event_id == event.id).first()
+        if not judge:
+            raise HTTPException(status_code=403, detail="No judge assignment exists for this event.")
+        teams = [team for team in teams if judge.id in (team.assigned_judges or []) or team.id in (judge.assigned_teams or [])]
     return [map_team_to_response(t, db) for t in teams]
 
 
 @router.get("/{team_id}", response_model=TeamResponse)
-def get_team(team_id: str, db: Session = Depends(get_db)):
-    """Retrieve details for a single team."""
-    team = db.query(Team).filter(Team.id == team_id).first()
-    if not team:
-        raise HTTPException(status_code=404, detail=f"Team '{team_id}' not found.")
+def get_team(team_id: str, db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+    """Retrieve details for a team only after validating event and assignment scope."""
+    team, event = _load_team_event(db, team_id)
+    _require_team_view(db, team, event, actor)
     return map_team_to_response(team, db)
 
 
 @router.post("", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)
-def register_team(payload: TeamCreate, db: Session = Depends(get_db)):
-    """Register a new team for an event."""
+def register_team(payload: TeamCreate, db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+    """Register a team only through an authenticated participant event session."""
+    event = db.query(Event).filter(Event.id == payload.eventId).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    if _active_role(actor) != "PARTICIPANT":
+        raise HTTPException(status_code=403, detail="Only authenticated participants can register teams.")
+    if getattr(actor, "active_event_id", None) != event.id:
+        raise HTTPException(status_code=403, detail="Team registration is outside the participant's active event.")
     team_count = db.query(Team).filter(Team.event_id == payload.eventId).count()
     new_team_id = f"T{(team_count + 1):03d}"
     qr_token = generate_qr_token(new_team_id, payload.eventId)
@@ -143,11 +185,17 @@ def register_team(payload: TeamCreate, db: Session = Depends(get_db)):
 
 
 @router.patch("/{team_id}/checkin", response_model=TeamResponse)
-def update_checkin_status(team_id: str, payload: CheckInUpdate, db: Session = Depends(get_db)):
-    """Update check-in state for team and write attendance record."""
-    team = db.query(Team).filter(Team.id == team_id).first()
-    if not team:
-        raise HTTPException(status_code=404, detail="Team not found.")
+def update_checkin_status(
+    team_id: str,
+    payload: CheckInUpdate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+):
+    """Update check-in only for an authorized event operations role."""
+    team, event = _load_team_event(db, team_id)
+    if _active_role(actor) not in {"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "VOLUNTEER"}:
+        raise HTTPException(status_code=403, detail="This role cannot update event check-in.")
+    require_event_scope(event, actor)
 
     team.check_in_status = payload.status
     now = datetime.now(timezone.utc)
@@ -175,8 +223,12 @@ def update_checkin_status(team_id: str, payload: CheckInUpdate, db: Session = De
 
 
 @router.post("/scan")
-async def scan_qr_token(payload: QRScanRequest, db: Session = Depends(get_db)):
-    """Validate cryptographic QR badge token, mark presence, and broadcast live update."""
+async def scan_qr_token(
+    payload: QRScanRequest,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+):
+    """Validate a QR badge only within an authorized event operations scope."""
     token = payload.qrToken.strip()
     team = (
         db.query(Team)
@@ -196,6 +248,15 @@ async def scan_qr_token(payload: QRScanRequest, db: Session = Depends(get_db)):
             status_code=404,
             detail="QR Badge Verification Failed: Unrecognized badge signature or team identifier.",
         )
+
+    team_event = db.query(Event).filter(Event.id == team.event_id).first()
+    if not team_event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    if _active_role(actor) not in {"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "VOLUNTEER"}:
+        raise HTTPException(status_code=403, detail="This role cannot scan event attendance.")
+    require_event_scope(team_event, actor)
+    if payload.eventId and payload.eventId != team.event_id:
+        raise HTTPException(status_code=403, detail="The badge belongs to a different event.")
 
     now = datetime.now(timezone.utc)
     team.check_in_status = "CHECKED_IN"
