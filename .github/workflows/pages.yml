@@ -4,9 +4,37 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "app/**"
+      - "components/**"
+      - "lib/**"
+      - "hooks/**"
+      - "public/**"
+      - "styles/**"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.*"
+      - "tsconfig.json"
+      - "postcss.config.*"
+      - "eslint.config.*"
+      - ".github/workflows/pages.yml"
   pull_request:
     branches:
       - main
+    paths:
+      - "app/**"
+      - "components/**"
+      - "lib/**"
+      - "hooks/**"
+      - "public/**"
+      - "styles/**"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.*"
+      - "tsconfig.json"
+      - "postcss.config.*"
+      - "eslint.config.*"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
