@@ -2,17 +2,22 @@ from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.entities import Team, Venue, Bench, Judge, AllocationConstraint
+from app.models.entities import Team, Venue, Bench, Judge, AllocationConstraint, Event
 from app.schemas.entities import OptimizationRequest
 from app.services.allocation_solver import AllocationSolverService
 from app.services.ai_service import AIService
-from app.api.deps import require_roles, User
+from app.api.deps import require_roles, get_current_user, User
+from app.api.v1.events import require_event_scope
 
 router = APIRouter()
 
 
 @router.get("/requirements")
-def get_allocation_requirements(eventId: str = "evt-01", db: Session = Depends(get_db)):
+def get_allocation_requirements(eventId: str = "evt-01", db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+    event = db.query(Event).filter(Event.id == eventId).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, actor)
     """Summary of optimization resources, capacities, and domain breakdown."""
     teams = db.query(Team).filter(Team.event_id == eventId).all()
     venues = db.query(Venue).filter(Venue.event_id == eventId).all()
@@ -40,7 +45,11 @@ def get_allocation_requirements(eventId: str = "evt-01", db: Session = Depends(g
 
 
 @router.get("/constraints")
-def get_constraints(eventId: str = "evt-01", db: Session = Depends(get_db)):
+def get_constraints(eventId: str = "evt-01", db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+    event = db.query(Event).filter(Event.id == eventId).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, actor)
     """Retrieve active hard and soft optimization constraints."""
     hard = [
         {"id": "hc-1", "name": "Strict Room Capacity", "description": "Never assign more teams to a room than physical seating limit.", "category": "CAPACITY", "enabled": True},
@@ -62,9 +71,13 @@ def get_constraints(eventId: str = "evt-01", db: Session = Depends(get_db)):
 def run_optimization(
     payload: OptimizationRequest,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"])),
+    actor: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"])),
 ):
-    """Execute real Google OR-Tools CP-SAT constraint programming solver."""
+    """Execute optimization only within a verified event scope."""
+    event = db.query(Event).filter(Event.id == payload.eventId).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, actor)
     result = AllocationSolverService.solve_event_allocation(
         db=db,
         event_id=payload.eventId,
