@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.api.v1.events import _active_role, _is_platform_admin, require_event_scope
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.security import get_password_hash
 from app.models.entities import (
     AuditLog,
@@ -20,7 +21,6 @@ from app.models.entities import (
     Invitation,
     Judge,
     Organization,
-    OrganizationMembership,
     User,
 )
 
@@ -213,7 +213,7 @@ def create_invitation(
         raise HTTPException(status_code=409, detail="Invitation could not be created because of a conflicting record.") from exc
     db.refresh(invitation)
     # Email delivery is deliberately not claimed. UI can copy the returned token/link.
-    acceptance_url = f"{__import__('app.core.config', fromlist=['settings']).settings.CLIENT_ORIGIN.rstrip('/')}/invite?token={token}"
+    acceptance_url = f"{settings.CLIENT_ORIGIN.rstrip('/')}/invite?token={token}"
     return InvitationCreated(**_summary(invitation).model_dump(), token=token, acceptanceUrl=acceptance_url)
 
 
@@ -303,8 +303,6 @@ def accept_invitation(
         account_created = True
     elif user.role == "SUPER_ADMIN":
         raise HTTPException(status_code=403, detail="Platform administrator accounts cannot accept event-role invitations.")
-    elif not payload.name.strip():
-        raise HTTPException(status_code=422, detail="Name is required.")
 
     existing_member = db.query(EventMember).filter(
         EventMember.event_id == invitation.event_id,
@@ -320,7 +318,6 @@ def accept_invitation(
             return InvitationAccepted(message="This account already has the invited event assignment.", userId=user.id, eventId=invitation.event_id, role=invitation.role, accountCreated=account_created)
         existing_member.status = "ACTIVE"
         existing_member.email = email
-        existing_member.name = user.name
     else:
         db.add(EventMember(
             id=f"em-{uuid.uuid4().hex[:16]}",
