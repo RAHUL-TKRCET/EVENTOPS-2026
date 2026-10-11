@@ -73,10 +73,38 @@ class VerifyInviteRequest(BaseModel):
     inviteCode: str
 
 
+
+
+
+
+class EventInvitationCreateRequest(BaseModel):
+    eventId: str = Field(min_length=1, max_length=64)
+    email: EmailStr
+    role: UserRole
+    expiresInHours: int = Field(default=72, ge=1, le=168)
+
+
+class EventInvitationCreateResponse(BaseModel):
+    invitationId: str
+    eventId: str
+    email: EmailStr
+    role: UserRole
+    invitationToken: str
+    expiresAt: str
+    message: str
+
+
+class EventInvitationRedeemRequest(BaseModel):
+    invitationToken: str = Field(min_length=32, max_length=256)
+    password: str = Field(min_length=8, max_length=128)
+    name: Optional[str] = Field(default=None, min_length=2, max_length=255)
+
+
 class VerifyInviteResponse(BaseModel):
     valid: bool
     role: Optional[str] = None
     organizationId: Optional[str] = None
     organizationName: Optional[str] = None
+    eventId: Optional[str] = None
+    eventName: Optional[str] = None
     message: str
-
