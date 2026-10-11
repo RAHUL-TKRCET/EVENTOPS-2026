@@ -1,0 +1,40 @@
+name: Deploy Backend to FastAPI Cloud
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - "main.py"
+      - "pyproject.toml"
+      - "requirements.txt"
+      - ".fastapicloudignore"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fastapi-cloud-backend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Deploy to FastAPI Cloud
+        run: uv run fastapi deploy
+        env:
+          FASTAPI_CLOUD_TOKEN: ${{ secrets.FASTAPI_CLOUD_TOKEN }}
+          FASTAPI_CLOUD_APP_ID: ${{ secrets.FASTAPI_CLOUD_APP_ID }}
