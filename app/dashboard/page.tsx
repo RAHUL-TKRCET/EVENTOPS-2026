@@ -28,6 +28,12 @@ import {
   Cpu,
   Clock,
   ExternalLink,
+  Building2,
+  CalendarPlus,
+  UserPlus,
+  ShieldCheck,
+  ArrowUpRight,
+  ClipboardList,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -45,7 +51,133 @@ import {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { currentEvent } = useAppStore();
+  const { currentEvent, currentRole, currentOrganization } = useAppStore();
+
+  if (currentRole === "ORGANIZATION_ADMIN") {
+    const adminActions = [
+      {
+        title: "Create an event",
+        description: "Set up a new event and prepare its dedicated access link.",
+        href: "/events/create",
+        icon: <CalendarPlus className="w-5 h-5" />,
+        accent: "text-indigo-300 bg-indigo-500/10 border-indigo-500/20",
+        action: "Create event",
+      },
+      {
+        title: "Events",
+        description: "Review and manage the events owned by your organization.",
+        href: "/events",
+        icon: <Building2 className="w-5 h-5" />,
+        accent: "text-sky-300 bg-sky-500/10 border-sky-500/20",
+        action: "Manage events",
+      },
+      {
+        title: "People & role assignments",
+        description: "Invite staff, assign event roles, and manage who can join your workspace.",
+        href: "/events/evt-01/roles",
+        icon: <UserPlus className="w-5 h-5" />,
+        accent: "text-emerald-300 bg-emerald-500/10 border-emerald-500/20",
+        action: "Manage access",
+      },
+      {
+        title: "Judges & enrollment",
+        description: "Add judges, review judge enrollment, and manage jury assignments without entering the judge scoring portal.",
+        href: "/judges",
+        icon: <Scale className="w-5 h-5" />,
+        accent: "text-amber-300 bg-amber-500/10 border-amber-500/20",
+        action: "Manage judges",
+      },
+      {
+        title: "Roles & permissions",
+        description: "Review the access model for organization and event roles.",
+        href: "/settings/roles",
+        icon: <ShieldCheck className="w-5 h-5" />,
+        accent: "text-violet-300 bg-violet-500/10 border-violet-500/20",
+        action: "Review permissions",
+      },
+      {
+        title: "Organization settings",
+        description: "Update your organization workspace and its settings.",
+        href: "/settings/organization",
+        icon: <ClipboardList className="w-5 h-5" />,
+        accent: "text-rose-300 bg-rose-500/10 border-rose-500/20",
+        action: "Open settings",
+      },
+    ];
+
+    return (
+      <div className="space-y-8">
+        <section className="relative overflow-hidden rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-indigo-950/70 via-slate-900 to-slate-950 p-6 md:p-8">
+          <div className="pointer-events-none absolute -right-12 -top-16 h-56 w-56 rounded-full bg-indigo-500/10 blur-3xl" />
+          <div className="relative flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div className="max-w-2xl space-y-3">
+              <div className="inline-flex items-center gap-2 rounded-full border border-indigo-400/25 bg-indigo-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-200">
+                <Building2 className="h-3.5 w-3.5" />
+                Organization workspace
+              </div>
+              <h2 className="text-3xl font-bold tracking-tight text-white md:text-4xl">
+                Welcome to {currentOrganization?.name || "your organization"}
+              </h2>
+              <p className="max-w-xl text-sm leading-6 text-slate-300">
+                Manage your events, enroll people, and assign responsibilities from one place. Team members only see the role-specific tools they are authorized to use.
+              </p>
+            </div>
+            <Button variant="primary" size="md" onClick={() => router.push("/events/create")} leftIcon={<CalendarPlus className="h-4 w-4" />}>
+              Create event
+            </Button>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Organization management</h3>
+            <p className="mt-1 text-sm text-slate-400">Choose a task to manage your organization. You do not need to open each role's dashboard to manage its membership.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {adminActions.map((item) => (
+              <button
+                key={item.title}
+                type="button"
+                onClick={() => router.push(item.href)}
+                className="group flex min-h-48 flex-col rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-left transition hover:-translate-y-0.5 hover:border-indigo-500/40 hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
+              >
+                <span className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border ${item.accent}`}>
+                  {item.icon}
+                </span>
+                <span className="mt-4 flex w-full items-center justify-between gap-3 text-base font-semibold text-white">
+                  {item.title}
+                  <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-500 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-indigo-300" />
+                </span>
+                <span className="mt-2 text-sm leading-5 text-slate-400">{item.description}</span>
+                <span className="mt-auto pt-5 text-xs font-semibold text-indigo-300">{item.action} →</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-5">
+            <div className="flex items-start gap-3">
+              <span className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-2.5 text-emerald-300"><UserPlus className="h-5 w-5" /></span>
+              <div>
+                <h3 className="font-semibold text-white">You manage access</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-400">Invite or enroll judges, coordinators, volunteers, participants, and other approved roles for your own organization and events.</p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-5">
+            <div className="flex items-start gap-3">
+              <span className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-2.5 text-amber-300"><ShieldCheck className="h-5 w-5" /></span>
+              <div>
+                <h3 className="font-semibold text-white">Role dashboards stay separate</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-400">Managing a judge's account does not grant permission to submit scores as that judge. Platform-wide controls remain reserved for the Super Admin.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   const checkedInCount = mockTeams.filter((t) => t.checkInStatus === "CHECKED_IN").length;
   const absentCount = mockTeams.filter((t) => t.checkInStatus === "ABSENT").length;
