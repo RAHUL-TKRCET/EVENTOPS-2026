@@ -25,7 +25,10 @@ Status: proposed; design and documentation only. No application code or database
 - The organization header must not be treated as authority for tenant scope. A missing or client-forged organization header must never bypass backend access checks.
 - Frontend OTP verification and forgot/reset password methods currently return simulated success; they are not real recovery flows.
 - GitHub Pages and FastAPI Cloud workflows are already separate and path-filtered. The Pages workflow points to the FastAPI Cloud API base URL.
-- The connected Supabase account lists CuraAssist and Meta-AI, but no EVENTOPS project. Do not modify those unrelated databases. Confirm the actual EVENTOPS Postgres provider/project before migrations.
+- Confirmed Supabase project: EVENTOPS-2026, ref kwttdfgxstazmtzpcjnu, region ap-south-1, PostgreSQL 17.11.0.003.
+- Read-only Supabase inspection found 24 public tables with RLS disabled; the Supabase security advisor reports this as critical because anon/authenticated Data API clients may access rows depending on grants. Do not blindly enable RLS across all tables: without matching policies, legitimate access may break. Define, test, and then apply table-specific policies in a reviewed migration.
+- The Supabase migration list returned no migrations. Establish a version-controlled baseline/schema snapshot before further changes, after reviewing existing live schema and seed data.
+- Inspected live table counts included organizations (1), users (15), organization_memberships (14), events (2), event_members (11), venues (3), judges (2), resources (3), incidents (1), benches (30), teams (5), and team_members (10). Counts are a point-in-time read-only observation, not a data-quality assessment.
 
 ## 3. Target architecture
 
@@ -119,17 +122,16 @@ Reconcile these proposed routes with current routers before implementation; don'
 
 ## 9. Safe data migration plan
 
-Do not migrate until the correct EVENTOPS database is identified.
-
-1. Read-only inventory of current production tables, constraints, IDs, role values, members, and any migration history.
-2. Schema-only export and verified backup.
+1. Treat the confirmed EVENTOPS Supabase database as the current schema target only after checking the project owner and environment. It contains existing data, so every schema change requires a reviewed migration and backup.
+2. Export a schema-only snapshot, review grants and policies, and take a verified backup.
 3. Decide whether event_members remains canonical or becomes a normalized role-assignment model.
 4. Add unique event slug and membership constraints additively.
 5. Backfill slugs and membership mappings; report duplicates and orphan rows before constraints are enforced.
 6. Preserve existing event IDs and links where possible.
 7. Add session/audit tables only after session architecture is selected.
-8. Enable or refine RLS only after understanding which DB role the FastAPI app uses and how trusted user/event context reaches PostgreSQL. Do not copy auth.uid()-based Supabase policies into a custom FastAPI JWT model without a deliberate identity bridge.
-9. Test migrations on a non-production database and document forward-fix/rollback approach.
+8. Build table-specific RLS policies after confirming how FastAPI connects and whether requests use a database owner/service role or user-scoped database identities. Test policies with anon, authenticated, and backend service contexts as applicable.
+9. Do not apply the advisor's blanket ENABLE ROW LEVEL SECURITY statements by themselves: RLS without policies will block ordinary data access, while enabling RLS with overly broad policies may provide no useful isolation.
+10. Create and test a version-controlled migration baseline, then use additive migrations and document the rollback/forward-fix plan.
 
 ## 10. Security and test requirements
 
@@ -138,13 +140,14 @@ Do not migrate until the correct EVENTOPS database is identified.
 - Never log credentials or raw tokens.
 - Rate limit authentication, registration, invite verification, OTP, and reset endpoints.
 - Ensure an ordinary registered user's valid password cannot bypass event_members assignment checks.
-- Ensure event A Judge cannot act as Event Admin in event A or enter event B without a separate assignment.
+- Ensure an Event A Judge cannot act as Event Admin in Event A or enter Event B without a separate assignment.
 - Ensure client-forged role, event ID, organization header, and dashboard URL cannot bypass server checks.
 - Ensure public event APIs reveal only deliberately public fields and roster endpoints are private.
 - Ensure disabling/removing membership blocks subsequent requests under the chosen token/revocation model.
 - Test logout, refresh rotation, reset-token single use/expiry, generic reset response, and rate limits.
 - Run unit tests, API integration tests, end-to-end browser tests, static analysis, dependency audit, and deployment smoke tests.
 - Release gate: no unresolved critical/high authorization finding; explicit cross-event negative tests pass.
+- Remediate the 24-table RLS exposure in a deliberate, table-by-table plan after policies and backend access mode have been tested.
 
 ## 11. Roadmap and acceptance criteria
 
@@ -152,14 +155,14 @@ Do not migrate until the correct EVENTOPS database is identified.
 |---|---|---:|---|---|
 | 0. Baseline audit | P0 | 1–2 days | Map routes, authorization dependencies, roles, existing tests, DB owner/schema | Permission matrix and DB/project confirmed |
 | 1. Authorization foundation | P0 | 2–4 days | Central policy, event membership dependency, event-login fix, private endpoint protection | Cross-role and cross-event negative tests pass |
-| 2. Organization-owner auth | P0 | 2–4 days | Safe registration/login, controlled owner membership, no self-elevation | New owner reaches organization workspace without user-selected privilege |
+| 2. Organization-owner auth | P0 | 2–4 days | Safe registration/login, controlled owner membership, no self-elevation | Owner account reaches organization workspace without user-selected privilege |
 | 3. Slug + portal API | P0 | 2–3 days | Unique canonical event URL, minimal public metadata, role options | Event creation returns stable URL and the portal resolves it |
-| 4. Shared portal UI | P0 | 2–4 days | Event details, same-link role options, authentication states/mobile UX | All enabled roles use same link; static direct load/refresh passes |
+| 4. Shared portal UI | P0 | 2–4 days | Event details, same-link role options, authentication states/mobile UX | All enabled roles use the same link; static direct load/refresh passes |
 | 5. Role-specific routing | P1 | 2–4 days | Server-derived context, dashboard routing and route regression tests | Verified role routes correctly; direct URL cannot bypass API security |
 | 6. Member provisioning | P1 | 3–5 days | Invite, accept, revoke, change assignment, audit events | Super Admin can assign/revoke roles; revocation takes effect |
 | 7. Session/recovery hardening | P1 | 3–5 days | Refresh lifecycle, real reset, limits, admin MFA | Session and recovery integration tests pass |
-| 8. DB/RLS hardening | P1 | 2–5 days | Migration, indexes, RLS aligned to identity model, isolation tests | Same-event allowed and cross-event denied at app and DB layers |
-| 9. Rollout | P1 | 1–3 days | Staging, monitoring, smoke tests, rollback playbook | Release gates pass before production cutover |
+| 8. DB/RLS hardening | P1 | 2–5 days | Schema migration, indexes, RLS aligned to identity model, isolation tests | Same-event reads pass; cross-event reads/writes denied at app and DB layers |
+| 9. Staging and rollout | P1 | 1–3 days | Staging, telemetry, smoke tests, rollout gates, rollback playbook | Release gates pass before production cutover |
 
 Estimates are directional single-developer planning estimates, not commitments. Do not begin later phases until previous acceptance criteria pass.
 
@@ -167,28 +170,30 @@ Estimates are directional single-developer planning estimates, not commitments. 
 
 - Keep GitHub Pages and FastAPI Cloud deploy workflows separate and path-filtered.
 - Add CI for lint/type-check/build, Pytest, API integration tests, and auth/RBAC negative cases.
-- Check the actual static export output and Pages base path `/EVENTOPS-2026`; direct event links and refresh must be tested.
+- Check the actual static export output and Pages base path /EVENTOPS-2026; direct event links and refresh must be tested.
 - Deploy backend API compatibility first, then frontend that consumes the new contract.
 - After each deploy, smoke test public event lookup, owner login, valid assigned event login, wrong-role denial, and cross-event denial.
-- Do not run Supabase migrations until the correct EVENTOPS project is identified.
+- Do not run Supabase migrations until table-by-table policies and the current backend connection mode are agreed.
 
 ## 13. First sprint
 
 1. Build the route/API-to-permission inventory and confirm the database provider/project.
 2. Add tests for the event-login bypass before changing behavior.
 3. Require active membership for the requested event and role and protect private event/member routes.
-4. Confirm organization-owner role semantics and registration flow.
-5. Implement event slug + public metadata contract after current route conventions are reconciled.
-6. Build the shared event portal around one event URL, then role-specific routing.
-7. Run cross-event isolation tests and deployment smoke tests before calling this complete.
+4. Review the 24-table RLS-disabled finding and create a table-specific policy matrix; do not apply blanket changes.
+5. Confirm organization-owner role semantics and registration flow.
+6. Implement event slug + public metadata contract after current route conventions are reconciled.
+7. Build the shared event portal around one event URL, then role-specific routing.
+8. Run cross-event isolation tests and deployment smoke tests before calling this complete.
 
 ## 14. Sources
 
-- Deep research report supplied for this project (authentication, event-scoped RBAC, data model, rollout, and milestone proposals).
+- Supplied deep research report (authentication, event-scoped RBAC, data model, rollout, and milestones).
 - OWASP Authorization Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html
 - OWASP Authentication Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
 - OWASP Session Management Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html
 - OWASP Multi-Tenant Security Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html
 - FastAPI Security: https://fastapi.tiangolo.com/tutorial/security/
 - Supabase local development/migrations: https://supabase.com/docs/guides/local-development/cli-workflows
+- Supabase RLS guidance: https://supabase.com/docs/guides/database/postgres/row-level-security
 - GitHub Actions workflow syntax: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax
