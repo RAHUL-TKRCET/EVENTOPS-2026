@@ -140,12 +140,12 @@ export default function HomePage() {
     {
       icon: UserRoundPlus,
       title: "Create the head account",
-      text: "The organization or event head creates a Super Admin account from this public page.",
+      text: "The organization head creates an administrator account from this public page.",
     },
     {
       icon: Layers,
       title: "Open your control room",
-      text: "After registration, you go straight to your Super Admin dashboard.",
+      text: "After registration, you go straight to your organization workspace.",
     },
     {
       icon: Calendar,
@@ -496,7 +496,7 @@ export default function HomePage() {
                     <Input label="Email address" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@organization.org" />
                     <Input label="Password" type="password" required autoComplete={authMode === "REGISTER" ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" />
                     <Button type="submit" variant="primary" size="lg" className="w-full" isLoading={isLoading} rightIcon={<ArrowRight className="h-4 w-4" />}>
-                      {isLoading ? "Please wait…" : authMode === "REGISTER" ? "Create Super Admin & continue" : "Sign in to your workspace"}
+                      {isLoading ? "Please wait…" : authMode === "REGISTER" ? "Create administrator & continue" : "Sign in to your workspace"}
                     </Button>
                   </form>
 
