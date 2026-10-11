@@ -45,6 +45,7 @@ def ensure_event_access(
         return
     if active_event_id and active_event_id != event.id:
         raise HTTPException(status_code=403, detail="This session is not assigned to the requested event.")
+
     if active_role == "ORGANIZATION_ADMIN":
         membership = (
             db.query(OrganizationMembership)
@@ -60,23 +61,12 @@ def ensure_event_access(
             if required_roles and active_role not in required_roles:
                 raise HTTPException(status_code=403, detail="This role cannot perform the requested event action.")
             return
-    if active_role == "EVENT_ADMIN":
-        assigned = (
-            db.query(EventMember)
-            .filter(
-                EventMember.event_id == event.id,
-                EventMember.user_id == user.id,
-                EventMember.role == "EVENT_ADMIN",
-                EventMember.status == "ACTIVE",
-            )
-            .first()
-        )
-        if assigned or event.owner_id == user.id:
-            if required_roles and active_role not in required_roles:
-                raise HTTPException(status_code=403, detail="This role cannot perform the requested event action.")
-            return
-    if required_roles and active_role not in required_roles:
-        raise HTTPException(status_code=403, detail="This role cannot perform the requested event action.")
+
+    if active_role == "EVENT_ADMIN" and event.owner_id == user.id:
+        if required_roles and active_role not in required_roles:
+            raise HTTPException(status_code=403, detail="This role cannot perform the requested event action.")
+        return
+
     assigned = (
         db.query(EventMember)
         .filter(
@@ -88,7 +78,10 @@ def ensure_event_access(
         .first()
     )
     if assigned:
+        if required_roles and active_role not in required_roles:
+            raise HTTPException(status_code=403, detail="This role cannot perform the requested event action.")
         return
+
     if event.owner_id == user.id and not required_roles:
         return
     raise HTTPException(status_code=403, detail="No active membership grants access to this event.")
@@ -260,6 +253,24 @@ def create_event(
     current_user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"])),
 ):
     """Create a new event entity with associated rounds and rules."""
+    active_role = getattr(current_user, "active_role", current_user.role)
+    active_event_id = getattr(current_user, "active_event_id", None)
+    if active_event_id or active_role not in ("SUPER_ADMIN", "ORGANIZATION_ADMIN"):
+        raise HTTPException(status_code=403, detail="Only a platform admin or organization admin can create events.")
+
+    target_org_id = payload.organizationId or getattr(current_user, "active_organization_id", None) or current_user.organization_id
+    if active_role == "ORGANIZATION_ADMIN":
+        membership = db.query(OrganizationMembership).filter(
+            OrganizationMembership.user_id == current_user.id,
+            OrganizationMembership.organization_id == target_org_id,
+            OrganizationMembership.role == "ORGANIZATION_ADMIN",
+            OrganizationMembership.status == "ACTIVE",
+        ).first()
+        if not membership:
+            raise HTTPException(status_code=403, detail="You cannot create events for this organization.")
+    elif target_org_id and current_user.organization_id and target_org_id != current_user.organization_id and active_role != "SUPER_ADMIN":
+        raise HTTPException(status_code=403, detail="You cannot create events for this organization.")
+
     new_id = f"evt-{uuid.uuid4().hex[:8]}"
 
     def parse_dt(dt_str: str) -> datetime:
@@ -270,7 +281,7 @@ def create_event(
 
     event = Event(
         id=new_id,
-        organization_id=payload.organizationId or current_user.organization_id,
+        organization_id=target_org_id,
         owner_id=current_user.id,
         is_personal_event=payload.isPersonalEvent,
         name=payload.name,
