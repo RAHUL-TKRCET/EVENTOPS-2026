@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.security import generate_qr_token
+from app.core.security import generate_qr_token, verify_qr_token
 from app.core.events import manager as realtime_manager
 from app.models.entities import Team, TeamMember, AttendanceRecord, Venue, Bench, User, Event
 from app.api.deps import get_current_user
@@ -201,27 +201,19 @@ async def scan_qr_token(
 ):
     """Validate a QR badge and check in a team only for assigned event staff."""
     token = payload.qrToken.strip()
-    team = (
-        db.query(Team)
-        .filter(
-            (Team.qr_code_token == token) | (Team.id == token)
-        )
-        .first()
-    )
-
-    if not team:
-        # Fallback search if token contains team ID
-        all_teams = db.query(Team).all()
-        team = next((t for t in all_teams if t.id in token or t.name.lower() in token.lower()), None)
-
+    # Only exact stored signed tokens are accepted. Raw team IDs and substring
+    # matches are not credentials and must never trigger attendance changes.
+    team = db.query(Team).filter(Team.qr_code_token == token).first()
     if not team:
         raise HTTPException(
             status_code=404,
-            detail="QR Badge Verification Failed: Unrecognized badge signature or team identifier.",
+            detail="QR Badge Verification Failed: Unrecognized badge signature.",
         )
 
     if payload.eventId and team.event_id != payload.eventId:
         raise HTTPException(status_code=403, detail="QR badge is outside the requested event.")
+    if not verify_qr_token(token, team.id, team.event_id):
+        raise HTTPException(status_code=403, detail="QR badge signature is invalid.")
     event = get_event_or_404(team.event_id, db)
     ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "VOLUNTEER", "TECHNICAL_STAFF"})
 
