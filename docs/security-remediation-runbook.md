@@ -1,7 +1,7 @@
 # EVENTOPS-2026 Security Remediation Runbook
 
 **Status:** planning/implementation branch; no production code or schema changes deployed.
-**Tracker:** https://docs.google.com/spreadsheets/d/1xE8dfbAAY2fFY9nxKvX3Glcb1M7FWJ5nydy88Z8zHM8/edit?usp=drivesdk
+**Tracker:** [EVENTOPS-2026 Implementation Tracker](https://docs.google.com/spreadsheets/d/1xE8dfbAAY2fFY9nxKvX3Glcb1M7FWJ5nydy88Z8zHM8/edit?usp=drivesdk) — read-only through current connector session; update status only when a Sheets write action is available.
 **Tracking issue:** https://github.com/RAHUL-TKRCET/EVENTOPS-2026/issues/7
 **Supabase project:** `kwttdfgxstazmtzpcjnu` (ap-south-1)
 
@@ -85,5 +85,18 @@ The DB uses varchar IDs in `public.users` and its own password/user model. Do no
 | Valid flow breaks after RLS | Pause and secure-forward-fix; don't blanket-disable RLS |
 | Advisor shows exposed table without RLS | Keep issue open |
 | Tests pass, backup verified, advisor reviewed | Request explicit release approval |
+
+
+## Current implementation status (2026-10-11)
+
+- [x] Feature branch and draft PR opened; review this branch before merging.
+- [x] Backend CI: 23 tests passed; two dependency deprecation warnings remain.
+- [x] Next.js static export build passed on the same head.
+- [ ] Apply or deploy the `event_invitations` schema only after establishing the migration baseline, backup/restore proof, and staging validation. The production database currently does not have this model table.
+- [ ] Supabase Security Advisor still reports 24 public tables with RLS disabled. No production RLS migration has been applied.
+- [ ] Direct Google Sheets editing is blocked because no write-capable Sheets connector is available in this session; mirror this status in the linked sheet when write access is restored.
+
+PR #8: https://github.com/RAHUL-TKRCET/EVENTOPS-2026/pull/8
+Tracking issue #9: https://github.com/RAHUL-TKRCET/EVENTOPS-2026/issues/9
 
 No production SQL was applied while preparing this runbook.
