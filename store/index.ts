@@ -43,10 +43,11 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  currentUser: mockUsers[0] || null,
+  // A public visitor starts unauthenticated. Never infer an authenticated session from mock fallback data.
+  currentUser: null,
   currentRole: "EVENT_ADMIN",
-  currentOrganization: mockOrganizations[0] || null,
-  currentEvent: mockEvents[0] || null,
+  currentOrganization: null,
+  currentEvent: null,
   theme: "dark",
   isSidebarCollapsed: false,
   isMobileSidebarOpen: false,
@@ -57,7 +58,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   workspaceMode: "ORGANIZATION",
   userOrganizations: mockOrganizations,
   personalEvents: mockPersonalEvents,
-  activePersonalEvent: mockPersonalEvents[0] || null,
+  activePersonalEvent: null,
 
   setCurrentUser: (user) => set({ currentUser: user, currentRole: user ? user.role : "EVENT_ADMIN" }),
   setCurrentRole: (role) =>
