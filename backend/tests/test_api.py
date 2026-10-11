@@ -1,5 +1,6 @@
 import os
 import sys
+import uuid
 
 backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if backend_dir not in sys.path:
@@ -53,7 +54,7 @@ def test_public_registration_rejects_privileged_roles():
     """Public registration must never grant privileged roles."""
     response = client.post("/api/v1/auth/register", json={
         "name": "Role Escalation Attempt",
-        "email": "self-elevate@example.com",
+        "email": f"self-elevate-{uuid.uuid4().hex}@example.com",
         "password": "LongEnoughPassword123",
         "role": "SUPER_ADMIN",
         "organizationId": "org-01",
@@ -147,7 +148,7 @@ def test_events_and_rounds():
         "/api/v1/events/evt-01",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code in (200, 403)
+    assert response.status_code == 200
     if response.status_code == 200:
         event = response.json()
         assert event["id"] == "evt-01"
