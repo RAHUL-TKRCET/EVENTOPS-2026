@@ -56,6 +56,7 @@ class TokenResponse(BaseModel):
 
 class RoleSwitchRequest(BaseModel):
     targetRole: UserRole
+    eventId: Optional[str] = None
 
 
 class RoleSwitchResponse(BaseModel):
