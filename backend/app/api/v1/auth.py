@@ -428,11 +428,20 @@ def redeem_event_invitation(
     payload: EventInvitationRedeemRequest,
     db: Session = Depends(get_db),
 ):
-    """Redeem an invitation using the token and password for its bound email."""
+    """Redeem an invitation exactly once, using the invite-bound identity."""
     raw_token = payload.invitationToken.strip()
     token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
-    invitation = db.query(EventInvitation).filter(EventInvitation.token_hash == token_hash).first()
     now = datetime.now(timezone.utc)
+
+    # A row lock serializes concurrent redemption attempts. The status update and
+    # assignment activation commit in the same transaction, so one invite cannot
+    # be redeemed by two accounts concurrently.
+    invitation = (
+        db.query(EventInvitation)
+        .filter(EventInvitation.token_hash == token_hash)
+        .with_for_update()
+        .first()
+    )
     if not invitation or invitation.redeemed_at is not None or invitation.revoked_at is not None:
         raise HTTPException(status_code=400, detail="Invitation is invalid, revoked, or already used.")
     expiry = invitation.expires_at
@@ -483,7 +492,11 @@ def redeem_event_invitation(
     member.user_id = user.id
     member.status = "ACTIVE"
     invitation.redeemed_at = now
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Invitation redemption conflicted with another request. Please retry.")
     db.refresh(user)
 
     claims = {
@@ -501,7 +514,7 @@ def redeem_event_invitation(
             name=user.name,
             email=user.email,
             role=invitation.role,
-            organizationId=user.organization_id,
+            organizationId=event.organization_id,
             createdAt=user.created_at.isoformat() if user.created_at else None,
         ),
         token=access_token,
