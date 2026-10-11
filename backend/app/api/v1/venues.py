@@ -128,7 +128,7 @@ def list_benches(
     if not venue:
         raise HTTPException(status_code=404, detail="Venue not found.")
     event = get_event_or_404(venue.event_id, db)
-    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "JUDGE", "VOLUNTEER", "TECHNICAL_STAFF", "RESOURCE_MANAGER"})
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "VOLUNTEER", "TECHNICAL_STAFF", "RESOURCE_MANAGER"})
     benches = db.query(Bench).filter(Bench.venue_id == venue_id).all()
     result = []
     for b in benches:
