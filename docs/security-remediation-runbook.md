@@ -92,15 +92,18 @@ The DB uses varchar IDs in `public.users` and its own password/user model. Do no
 - [x] Added a separate GitHub Actions job using a disposable PostgreSQL 16 service; it runs the existing backend suite against PostgreSQL.
 - [x] Added a portable SQL assertion gate at `supabase/tests/rls_privilege_gate.assertions.sql`. It checks RLS is enabled on every public base/partitioned table and verifies `anon`/`authenticated` lack direct table privileges.
 - [x] The CI job creates Supabase-style API roles and applies the invitation-table and default-deny proposal only inside its disposable PostgreSQL container.
-- [ ] Wait for the new GitHub Actions run and fix any failures.
+- [x] GitHub Actions run 38153191469 passed: PostgreSQL backend suite, invitation-table schema proposal, default-deny RLS proposal, and portable RLS/privilege assertions all succeeded.
 - [ ] The CI service tests schema/SQL behavior in vanilla PostgreSQL. It does not prove the deployed FastAPI database role is subject to RLS, does not reproduce every Supabase-managed behavior, and does not validate production grants/identities. Those remain release gates.
 - [ ] Main Supabase data has not been truncated or altered.
 
 ## Current implementation status (2026-10-11)
 
 - [x] Feature branch and draft PR opened; review this branch before merging.
-- [x] Backend CI: 23 tests passed; two dependency deprecation warnings remain.
-- [x] Next.js static export build passed on the same head.
+- [x] SQLite backend CI passed (23 tests).
+- [x] PostgreSQL backend CI passed (23 tests); it caught and helped fix PostgreSQL FK ordering defects in organization registration and invitation creation.
+- [x] Disposable PostgreSQL RLS CI passed: invitation schema proposal applied; default-deny proposal applied; all public base/partitioned tables had RLS enabled; anon/authenticated had no direct table privileges.
+- [x] Next.js static export build passed on the same head: https://github.com/RAHUL-TKRCET/EVENTOPS-2026/actions/runs/38153191457
+- [x] Backend/PostgreSQL/RLS CI run: https://github.com/RAHUL-TKRCET/EVENTOPS-2026/actions/runs/38153191469
 - [ ] Apply or deploy the `event_invitations` schema only after establishing the migration baseline, backup/restore proof, and staging validation. The production database currently does not have this model table.
 - [ ] Supabase Security Advisor still reports 24 public tables with RLS disabled. No production RLS migration has been applied.
 - [ ] Direct Google Sheets editing is blocked because no write-capable Sheets connector is available in this session; mirror this status in the linked sheet when write access is restored.
