@@ -156,8 +156,19 @@ def test_events_and_rounds():
 
 
 def test_teams_and_qr_scan():
-    """Verify team query and cryptographic QR badge scan."""
-    teams_res = client.get("/api/v1/teams?eventId=evt-01")
+    """Verify protected team access and signed-only QR check-in."""
+    anonymous_res = client.get("/api/v1/teams?eventId=evt-01")
+    assert anonymous_res.status_code == 401
+
+    login_res = client.post("/api/v1/auth/login", json={
+        "email": "eventadmin@eventops.demo",
+        "password": "EventOps@2026",
+        "role": "EVENT_ADMIN",
+    })
+    assert login_res.status_code == 200
+    headers = {"Authorization": f"Bearer {login_res.json()['accessToken']}"}
+
+    teams_res = client.get("/api/v1/teams?eventId=evt-01", headers=headers)
     assert teams_res.status_code == 200
     teams = teams_res.json()
     assert len(teams) >= 1
@@ -165,8 +176,20 @@ def test_teams_and_qr_scan():
     first_team = teams[0]
     qr_token = first_team["qrCodeToken"]
 
-    # Scan the team badge
-    scan_res = client.post("/api/v1/teams/scan", json={"qrToken": qr_token, "eventId": "evt-01"})
+    # Unsigned identifiers must not check teams in.
+    raw_id_res = client.post(
+        "/api/v1/teams/scan",
+        headers=headers,
+        json={"qrToken": first_team["id"], "eventId": "evt-01"},
+    )
+    assert raw_id_res.status_code == 404
+
+    # Scan the exact signed team badge.
+    scan_res = client.post(
+        "/api/v1/teams/scan",
+        headers=headers,
+        json={"qrToken": qr_token, "eventId": "evt-01"},
+    )
     assert scan_res.status_code == 200
     scan_data = scan_res.json()
     assert scan_data["success"] is True
