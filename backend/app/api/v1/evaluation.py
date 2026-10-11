@@ -159,7 +159,7 @@ def get_leaderboard(
 ):
     """Compute a leaderboard only for an authorized event member."""
     event = get_event_or_404(event_id, db)
-    ensure_event_access(event, current_user, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "JUDGE", "PARTICIPANT"})
     teams = db.query(Team).filter(Team.event_id == event_id).order_by(Team.total_score.desc()).all()
     results = []
     for rank, t in enumerate(teams, start=1):
