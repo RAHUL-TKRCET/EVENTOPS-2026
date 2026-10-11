@@ -263,7 +263,8 @@ async def scan_qr_token(
     db.commit()
 
     # Real-time WebSocket broadcast
-    await realtime_manager.broadcast("attendance:live", {
+    await realtime_manager.broadcast(f"attendance:{team.event_id}:live", {
+        "eventId": team.event_id,
         "type": "TEAM_CHECKED_IN",
         "teamId": team.id,
         "teamName": team.name,
