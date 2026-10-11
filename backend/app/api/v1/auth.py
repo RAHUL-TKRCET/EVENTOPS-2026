@@ -194,6 +194,14 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         organization_id=organization_id,
     )
     db.add(new_user)
+    try:
+        # Flush the parent first so PostgreSQL sees the referenced user before
+        # inserting its organization membership (SQLite may not reveal this order bug).
+        db.flush([new_user])
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Account registration failed. Please retry.")
+
     if organization_id:
         db.add(OrganizationMembership(
             id=f"mem-{uuid.uuid4().hex[:12]}",
@@ -412,8 +420,15 @@ def create_event_invitation(
         expires_at=expires_at,
     )
     db.add(member)
-    db.add(invitation)
-    db.commit()
+    try:
+        # Persist the roster row before its invitation FK; this is important on
+        # PostgreSQL where both objects are new in the same request transaction.
+        db.flush([member])
+        db.add(invitation)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Invitation creation failed. Please retry.")
 
     return EventInvitationCreateResponse(
         invitationId=invitation_id,
