@@ -44,6 +44,12 @@ async def submit_evaluation(
     if not judge:
         raise HTTPException(status_code=403, detail="No judge assignment is linked to this account.")
     judge_id = judge.id
+    if judge.id not in (team.assigned_judges or []):
+        raise HTTPException(status_code=403, detail="This team is not assigned to the authenticated judge.")
+    if payload.status not in {"DRAFT", "SUBMITTED", "FINAL"}:
+        raise HTTPException(status_code=400, detail="Unsupported evaluation status.")
+    if not payload.scores or any(not isinstance(value, (int, float)) or value < 0 for value in payload.scores.values()):
+        raise HTTPException(status_code=400, detail="Scores must be non-negative numeric values.")
 
     # Compute total score
     scores = payload.scores
@@ -61,11 +67,14 @@ async def submit_evaluation(
 
     now = datetime.now(timezone.utc)
     if eval_record:
+        if eval_record.status in {"SUBMITTED", "FINAL"}:
+            raise HTTPException(status_code=409, detail="A submitted/final scorecard cannot be overwritten through this endpoint.")
         eval_record.scores = scores
         eval_record.total_score = total_score
         eval_record.feedback = payload.feedback
         eval_record.strengths = payload.strengths
         eval_record.areas_to_improve = payload.areasToImprove
+        eval_record.status = payload.status
         eval_record.submitted_at = now
     else:
         eval_record = Evaluation(
