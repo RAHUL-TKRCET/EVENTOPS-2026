@@ -13,11 +13,27 @@ import { Lock } from "lucide-react";
 import { checkRouteAccess } from "@/lib/permissions";
 import { AccessDenied } from "@/components/ui/AccessDenied";
 
+const ORGANIZATION_MANAGEMENT_PREFIXES = [
+  "/dashboard",
+  "/events",
+  "/judges",
+  "/settings/organization",
+  "/settings/roles",
+] as const;
+
+function isOrganizationManagementRoute(pathname: string): boolean {
+  // Keep event-specific login and portals on their separate role-scoped shell.
+  if (pathname.includes("/portal") || pathname.endsWith("/login")) return false;
+  return ORGANIZATION_MANAGEMENT_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const pathname = usePathname();
   const router = useRouter();
   const { isMobileSidebarOpen, setMobileSidebarOpen, theme, currentRole, currentUser } = useAppStore();
-  const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && pathname === "/dashboard";
+  const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && isOrganizationManagementRoute(pathname);
 
   // Public pages that do not require an active session
   const isPublicPage =
@@ -79,7 +95,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   return (
     <div className="min-h-screen flex bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
-      {/* Organization Admin home is a focused, card-based workspace rather than a persistent navigation shell. */}
+      {/* Organization Admin management uses a focused workspace; role-specific portals keep their own shell. */}
       {!isOrganizationHome && (
         <>
           {/* Desktop Persistent Sidebar */}
