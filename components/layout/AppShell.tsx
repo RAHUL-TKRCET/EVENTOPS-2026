@@ -89,14 +89,15 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
           {/* Mobile Drawer Sidebar */}
           {isMobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
-          <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity"
-            onClick={() => setMobileSidebarOpen(false)}
-          />
-          <div className="relative z-10 w-72 max-w-[85vw] h-full bg-slate-950 shadow-2xl">
-            <Sidebar />
-          </div>
+            <div className="fixed inset-0 z-50 md:hidden flex">
+              <div
+                className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity"
+                onClick={() => setMobileSidebarOpen(false)}
+              />
+              <div className="relative z-10 w-72 max-w-[85vw] h-full bg-slate-950 shadow-2xl">
+                <Sidebar />
+              </div>
+            </div>
           )}
         </>
       )}
