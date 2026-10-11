@@ -39,11 +39,14 @@ class EventLoginRequest(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    name: str = Field(min_length=2)
+    name: str = Field(min_length=2, max_length=255)
     email: EmailStr
-    password: str = Field(min_length=6)
+    password: str = Field(min_length=8, max_length=128)
+    # Public registration may create only a participant or a new organization owner.
+    # Event/platform privileges are assigned through trusted administrative workflows.
     role: Optional[UserRole] = "PARTICIPANT"
-    organizationId: Optional[str] = "org-01"
+    organizationId: Optional[str] = None
+    organizationName: Optional[str] = Field(default=None, min_length=2, max_length=255)
 
 
 class TokenResponse(BaseModel):
