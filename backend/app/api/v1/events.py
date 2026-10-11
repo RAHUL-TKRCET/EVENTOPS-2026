@@ -174,6 +174,7 @@ def list_events(
     organization_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _tenant_user: User = Depends(get_current_tenant_user),
 ):
     """List only events reachable through the authenticated user's current scope."""
     active_role = getattr(current_user, "active_role", current_user.role)
