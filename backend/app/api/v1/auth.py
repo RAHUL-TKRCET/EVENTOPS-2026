@@ -183,6 +183,13 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
             contact_email=payload.email.lower(),
             plan="Starter",
         ))
+        try:
+            # The user's organization_id is a real PostgreSQL FK; persist the
+            # parent organization before flushing the user that references it.
+            db.flush()
+        except Exception:
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Organization registration failed. Please retry.")
         target_role = "ORGANIZATION_ADMIN"
 
     new_user = User(
@@ -197,7 +204,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     try:
         # Flush the parent first so PostgreSQL sees the referenced user before
         # inserting its organization membership (SQLite may not reveal this order bug).
-        db.flush([new_user])
+        db.flush()
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Account registration failed. Please retry.")
@@ -423,7 +430,7 @@ def create_event_invitation(
     try:
         # Persist the roster row before its invitation FK; this is important on
         # PostgreSQL where both objects are new in the same request transaction.
-        db.flush([member])
+        db.flush()
         db.add(invitation)
         db.commit()
     except Exception:
