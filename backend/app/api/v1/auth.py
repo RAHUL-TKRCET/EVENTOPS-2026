@@ -202,7 +202,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         token=access_token,
         accessToken=access_token,
         refreshToken=refresh_token,
-        expiresIn=86400,
+        expiresIn=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
 
 
