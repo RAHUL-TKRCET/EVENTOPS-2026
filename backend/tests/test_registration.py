@@ -38,6 +38,7 @@ def client():
     # Do not use TestClient as a context manager here: its lifespan would touch
     # the application-level database. These tests use only the isolated SQLite DB.
     test_client = TestClient(app)
+    test_client.registration_test_session = TestingSessionLocal
     yield test_client
     app.dependency_overrides.pop(get_db, None)
     test_engine.dispose()
@@ -64,8 +65,7 @@ def test_organization_registration_creates_owner_and_membership_atomically(clien
     assert body["refreshToken"]
 
     # Inspect the isolated test database, not Supabase or the deployed service.
-    override = app.dependency_overrides[get_db]
-    db = next(override())
+    db = client.registration_test_session()
     try:
         owner = db.query(User).filter(User.email == email).one()
         organization = db.query(Organization).filter(Organization.id == owner.organization_id).one()
