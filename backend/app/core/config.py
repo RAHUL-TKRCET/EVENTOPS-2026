@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     PORT: int = Field(default=5000, validation_alias="PORT")
     ENVIRONMENT: str = Field(default="development", validation_alias=AliasChoices("ENVIRONMENT", "NODE_ENV"))
+    # Schema creation and demo seeding are opt-in for local development only.
+    AUTO_CREATE_SCHEMA: bool = Field(default=False, validation_alias="AUTO_CREATE_SCHEMA")
 
     # Database
     DATABASE_URL: Optional[str] = Field(default=None, validation_alias="DATABASE_URL")
