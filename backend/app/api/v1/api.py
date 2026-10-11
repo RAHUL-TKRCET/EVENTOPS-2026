@@ -6,6 +6,7 @@ from app.api.deps import require_roles, User
 from app.api.v1 import (
     auth,
     events,
+    judges,
     teams,
     venues,
     attendance,
@@ -20,6 +21,7 @@ api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication & RBAC"])
 api_router.include_router(events.router, prefix="/events", tags=["Events & Stages"])
+api_router.include_router(judges.router, prefix="/judges", tags=["Judge Enrollment & Assignments"])
 api_router.include_router(teams.router, prefix="/teams", tags=["Teams & Check-in"])
 api_router.include_router(venues.router, prefix="/venues", tags=["Venues & Benches"])
 api_router.include_router(attendance.router, prefix="/attendance", tags=["Attendance & Hardware Scans"])
