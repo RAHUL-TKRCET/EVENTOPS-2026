@@ -21,6 +21,22 @@ import { mockAnnouncements } from "@/lib/mock-data/notifications";
 import { authApi } from "@/lib/api/auth";
 import { cn } from "@/lib/utils";
 
+const ORGANIZATION_MANAGEMENT_PREFIXES = [
+  "/dashboard",
+  "/events",
+  "/judges",
+  "/settings/organization",
+  "/settings/roles",
+] as const;
+
+function isOrganizationManagementRoute(pathname: string): boolean {
+  // Keep event-specific login and portals on their separate role-scoped shell.
+  if (pathname.includes("/portal") || pathname.endsWith("/login")) return false;
+  return ORGANIZATION_MANAGEMENT_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
 export const Topbar: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
@@ -38,7 +54,7 @@ export const Topbar: React.FC = () => {
     logout,
   } = useAppStore();
 
-  const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && pathname === "/dashboard";
+  const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && isOrganizationManagementRoute(pathname);
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
