@@ -119,9 +119,10 @@ def event_login(payload: EventLoginRequest, db: Session = Depends(get_db)):
         )
 
     if not member.user_id:
-        member.user_id = user.id
-        db.commit()
-        db.refresh(member)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This roster assignment has not been securely linked to your account. Ask an event administrator to provision your account.",
+        )
 
     claims = {
         "email": user.email,
