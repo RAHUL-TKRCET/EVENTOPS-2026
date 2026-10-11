@@ -62,6 +62,38 @@ def test_public_registration_rejects_privileged_roles():
     assert response.status_code == 403
 
 
+def test_organization_registration_creates_new_scoped_owner():
+    """Organization onboarding creates a new tenant instead of assigning an existing one."""
+    response = client.post("/api/v1/auth/register", json={
+        "name": "New Organization Owner",
+        "email": f"organization-owner-{uuid.uuid4().hex}@example.com",
+        "password": "LongEnoughPassword123",
+        "role": "ORGANIZATION_ADMIN",
+        "organizationName": "New Test Organization",
+        "organizationId": "org-01",
+    })
+    assert response.status_code == 201
+    data = response.json()
+    assert data["user"]["role"] == "ORGANIZATION_ADMIN"
+    assert data["user"]["organizationId"]
+    assert data["user"]["organizationId"] != "org-01"
+
+
+def test_participant_registration_cannot_join_existing_organization():
+    """The client cannot attach a public participant registration to an existing tenant."""
+    response = client.post("/api/v1/auth/register", json={
+        "name": "New Participant",
+        "email": f"participant-{uuid.uuid4().hex}@example.com",
+        "password": "LongEnoughPassword123",
+        "role": "PARTICIPANT",
+        "organizationId": "org-01",
+    })
+    assert response.status_code == 201
+    data = response.json()
+    assert data["user"]["role"] == "PARTICIPANT"
+    assert data["user"]["organizationId"] is None
+
+
 def test_global_login_cannot_switch_super_admin_into_event_role():
     """Role selection on global login must not elevate a platform account."""
     response = client.post("/api/v1/auth/login", json={
