@@ -49,6 +49,45 @@ def test_auth_login_invalid_credentials():
     assert "Authentication failed" in response.json()["detail"]
 
 
+def test_public_registration_rejects_privileged_roles():
+    """Public registration must never grant privileged roles."""
+    response = client.post("/api/v1/auth/register", json={
+        "name": "Role Escalation Attempt",
+        "email": "self-elevate@example.com",
+        "password": "LongEnoughPassword123",
+        "role": "SUPER_ADMIN",
+        "organizationId": "org-01",
+    })
+    assert response.status_code == 403
+
+
+def test_global_login_cannot_switch_super_admin_into_event_role():
+    """Role selection on global login must not elevate a platform account."""
+    response = client.post("/api/v1/auth/login", json={
+        "email": "superadmin@eventops.demo",
+        "password": "SuperAdmin@2026",
+        "role": "EVENT_ADMIN",
+    })
+    assert response.status_code == 403
+
+
+def test_event_login_rejects_unassigned_role():
+    """A valid global account cannot assume a role without an event assignment."""
+    response = client.post("/api/v1/auth/event-login", json={
+        "eventId": "evt-01",
+        "email": "superadmin@eventops.demo",
+        "password": "SuperAdmin@2026",
+        "role": "JUDGE",
+    })
+    assert response.status_code == 401
+
+
+def test_event_roster_is_not_public():
+    """The member list exposes contact details and therefore requires authorization."""
+    response = client.get("/api/v1/events/evt-01/members")
+    assert response.status_code == 401
+
+
 def test_rbac_protection():
     """Verify role-based authorization prevents privilege escalation."""
     # 1. Login as participant
