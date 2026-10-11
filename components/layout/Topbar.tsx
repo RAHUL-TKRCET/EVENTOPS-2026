@@ -38,6 +38,8 @@ export const Topbar: React.FC = () => {
     logout,
   } = useAppStore();
 
+  const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && pathname === "/dashboard";
+
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
@@ -57,12 +59,14 @@ export const Topbar: React.FC = () => {
     <header className="h-16 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-20 px-4 md:px-6 flex items-center justify-between">
       {/* Left: Mobile hamburger & Breadcrumb */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => setMobileSidebarOpen(!isMobileSidebarOpen)}
-          className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-900"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
+        {!isOrganizationHome && (
+          <button
+            onClick={() => setMobileSidebarOpen(!isMobileSidebarOpen)}
+            className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-900"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
 
         <div className="flex flex-col">
           <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono">
