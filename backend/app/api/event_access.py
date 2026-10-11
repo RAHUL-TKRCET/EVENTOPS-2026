@@ -22,6 +22,8 @@ def ensure_event_access(
     active_event_id = getattr(user, "active_event_id", None)
 
     if active_role == "SUPER_ADMIN" and not active_event_id:
+        if required_roles and "SUPER_ADMIN" not in required_roles:
+            raise HTTPException(status_code=403, detail="Platform administrators cannot use this action without an explicitly permitted role assignment.")
         return
 
     if active_event_id and active_event_id != event.id:
