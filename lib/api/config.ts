@@ -56,10 +56,21 @@ export async function apiRequest<T = any>(
     ...(options.headers as Record<string, string> || {}),
   };
 
-  const response = await fetch(url, {
-    ...options,
-    headers: mergedHeaders,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers: mergedHeaders,
+    });
+  } catch (error) {
+    // Browsers intentionally hide low-level details for CORS, DNS, TLS, and
+    // connectivity failures. Give users the actionable endpoint/origin context.
+    const reason =
+      error instanceof Error && error.name === "AbortError"
+        ? "The request timed out or was cancelled."
+        : "The browser could not reach the API. Check backend availability, CORS, and network access.";
+    throw new Error(`${reason} API endpoint: ${url}`);
+  }
 
   if (!response.ok) {
     let errorDetail = `HTTP ${response.status} ${response.statusText}`;
