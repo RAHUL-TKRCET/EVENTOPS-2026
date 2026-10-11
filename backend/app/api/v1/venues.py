@@ -53,7 +53,7 @@ def list_venues(
 ):
     """List venues only for an authorized event."""
     event = get_event_or_404(eventId, db)
-    ensure_event_access(event, current_user, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "JUDGE", "VOLUNTEER", "TECHNICAL_STAFF", "RESOURCE_MANAGER"})
     venues = db.query(Venue).filter(Venue.event_id == eventId).all()
     return [map_venue_to_response(v, db) for v in venues]
 
@@ -69,7 +69,7 @@ def get_venue(
     if not venue:
         raise HTTPException(status_code=404, detail="Venue not found.")
     event = get_event_or_404(venue.event_id, db)
-    ensure_event_access(event, current_user, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "JUDGE", "VOLUNTEER", "TECHNICAL_STAFF", "RESOURCE_MANAGER"})
     return map_venue_to_response(venue, db)
 
 
@@ -128,7 +128,7 @@ def list_benches(
     if not venue:
         raise HTTPException(status_code=404, detail="Venue not found.")
     event = get_event_or_404(venue.event_id, db)
-    ensure_event_access(event, current_user, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "JUDGE", "VOLUNTEER", "TECHNICAL_STAFF", "RESOURCE_MANAGER"})
     benches = db.query(Bench).filter(Bench.venue_id == venue_id).all()
     result = []
     for b in benches:
