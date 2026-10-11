@@ -73,7 +73,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#0b1120] text-slate-100 selection:bg-blue-500 selection:text-white">
       {/* Top Navbar */}
-      <header className="border-b border-slate-800/80 bg-[#0b1120]/80 backdrop-blur-md sticky top-0 z-40">
+      <header className="border-b border-white/10/80 bg-[#0b1120]/80 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-mono font-bold text-white text-lg shadow-lg shadow-blue-600/30">
@@ -129,7 +129,7 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden pt-12 pb-20 md:pt-20 md:pb-28">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(59,130,246,0.07),rgba(255,255,255,0))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(59,130,246,0.035),rgba(255,255,255,0))]" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-12">
           <div className="text-center max-w-3xl mx-auto space-y-4">
@@ -310,7 +310,7 @@ export default function HomePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 space-y-3">
+            <div className="p-5 rounded-2xl border border-white/10 bg-white/[0.025] space-y-3">
               <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
                 <Users className="w-4 h-4" />
               </div>
@@ -320,7 +320,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 space-y-3">
+            <div className="p-5 rounded-2xl border border-white/10 bg-white/[0.025] space-y-3">
               <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
                 <Calendar className="w-4 h-4" />
               </div>
@@ -330,7 +330,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 space-y-3">
+            <div className="p-5 rounded-2xl border border-white/10 bg-white/[0.025] space-y-3">
               <div className="w-9 h-9 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-400">
                 <QrCode className="w-4 h-4" />
               </div>
@@ -340,7 +340,7 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 space-y-3">
+            <div className="p-5 rounded-2xl border border-white/10 bg-white/[0.025] space-y-3">
               <div className="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400">
                 <Cpu className="w-4 h-4" />
               </div>
