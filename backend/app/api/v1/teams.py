@@ -8,7 +8,7 @@ from app.core.security import generate_qr_token, verify_qr_token
 from app.core.events import manager as realtime_manager
 from app.models.entities import Team, TeamMember, AttendanceRecord, Venue, Bench, User, Event
 from app.api.deps import get_current_user
-from app.api.event_access import ensure_event_access, get_event_or_404
+from app.api.event_access import ensure_event_access, ensure_team_scope, get_event_or_404
 from app.schemas.entities import (
     TeamCreate,
     TeamResponse,
@@ -83,6 +83,18 @@ def list_teams(
     event = get_event_or_404(eventId, db)
     ensure_event_access(event, current_user, db)
     teams = db.query(Team).filter(Team.event_id == eventId).all()
+    active_role = getattr(current_user, "active_role", current_user.role)
+    if active_role == "PARTICIPANT":
+        teams = [
+            team for team in teams
+            if team.lead_email.lower() == current_user.email.lower()
+            or db.query(TeamMember.id).filter(
+                TeamMember.team_id == team.id,
+                TeamMember.email.ilike(current_user.email),
+            ).first()
+        ]
+    elif active_role == "JUDGE":
+        teams = [team for team in teams if current_user.id in (team.assigned_judges or [])]
     return [map_team_to_response(t, db) for t in teams]
 
 
@@ -96,14 +108,21 @@ def get_team(
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:
         raise HTTPException(status_code=404, detail=f"Team '{team_id}' not found.")
-    event = get_event_or_404(team.event_id, db)
-    ensure_event_access(event, current_user, db)
+    ensure_team_scope(team, current_user, db)
     return map_team_to_response(team, db)
 
 
 @router.post("", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)
 def register_team(payload: TeamCreate, db: Session = Depends(get_db)):
-    """Register a new team for an event."""
+    """Allow team registration only for an existing event that is accepting registrations."""
+    event = get_event_or_404(payload.eventId, db)
+    if event.status not in ("LIVE", "UPCOMING", "REGISTRATION_OPEN"):
+        raise HTTPException(status_code=403, detail="This event is not accepting team registrations.")
+    deadline = event.registration_deadline
+    if deadline:
+        now = datetime.now(deadline.tzinfo) if deadline.tzinfo else datetime.now()
+        if deadline <= now:
+            raise HTTPException(status_code=403, detail="The registration deadline for this event has passed.")
     team_count = db.query(Team).filter(Team.event_id == payload.eventId).count()
     new_team_id = f"T{(team_count + 1):03d}"
     qr_token = generate_qr_token(new_team_id, payload.eventId)
