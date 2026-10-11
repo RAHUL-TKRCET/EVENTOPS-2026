@@ -221,7 +221,7 @@ def seed_database():
 
         # 6. Judges
         judges_data = [
-            ("J001", "usr-super", "Dr. Marcus Vance", "marcus.vance@mit.edu", "MIT AI Lab", "Principal Research Scientist", ["AI / Machine Learning"]),
+            ("J001", "J001", "Dr. Marcus Vance", "marcus.vance@mit.edu", "MIT AI Lab", "Principal Research Scientist", ["AI / Machine Learning"]),
             ("J002", "usr-org", "Dr. Sarah Connor", "sarah.connor@cyberdyne.org", "Stanford CS", "Associate Professor", ["Distributed Systems", "CyberSecurity"]),
         ]
         for jid, uid, jname, jemail, jorg, jtitle, jdoms in judges_data:
