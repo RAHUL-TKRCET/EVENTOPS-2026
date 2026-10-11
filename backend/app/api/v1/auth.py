@@ -112,16 +112,10 @@ def event_login(payload: EventLoginRequest, db: Session = Depends(get_db)):
             detail="This event assignment is not linked to an account yet. Ask an event administrator to complete secure account provisioning.",
         )
 
-    if member.user_id and member.user_id != user.id:
+    if not member.user_id or member.user_id != user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This event assignment is linked to a different account.",
-        )
-
-    if not member.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This roster assignment has not been securely linked to your account. Ask an event administrator to provision your account.",
+            detail="This event assignment is not linked to your account. Ask an event administrator to complete secure account provisioning.",
         )
 
     claims = {
@@ -276,11 +270,13 @@ def switch_active_role(
         # Staying in the platform role does not grant an event role.
         claims.pop("eventId", None)
     elif payload.targetRole == "ORGANIZATION_ADMIN":
+        if not payload.organizationId:
+            raise HTTPException(status_code=400, detail="organizationId is required when switching organization scope.")
         membership = (
             db.query(OrganizationMembership)
             .filter(
                 OrganizationMembership.user_id == current_user.id,
-                OrganizationMembership.organization_id == current_user.organization_id,
+                OrganizationMembership.organization_id == payload.organizationId,
                 OrganizationMembership.role == "ORGANIZATION_ADMIN",
                 OrganizationMembership.status == "ACTIVE",
             )
