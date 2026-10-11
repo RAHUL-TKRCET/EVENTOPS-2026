@@ -93,6 +93,44 @@ class EventResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class JudgeCreate(BaseModel):
+    eventId: str
+    name: str = Field(min_length=2, max_length=255)
+    email: EmailStr
+    organization: Optional[str] = None
+    title: Optional[str] = None
+    domains: List[str] = []
+    assignedTeams: List[str] = []
+    maxTeams: int = Field(default=10, ge=1, le=100)
+    workloadStatus: str = "AVAILABLE"
+
+
+class JudgeUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=2, max_length=255)
+    organization: Optional[str] = None
+    title: Optional[str] = None
+    domains: Optional[List[str]] = None
+    maxTeams: Optional[int] = Field(default=None, ge=1, le=100)
+    workloadStatus: Optional[str] = None
+
+
+class JudgeResponse(BaseModel):
+    id: str
+    eventId: str
+    userId: Optional[str] = None
+    name: str
+    email: str
+    organization: Optional[str] = None
+    designation: Optional[str] = None
+    expertise: List[str] = []
+    domains: List[str] = []
+    assignedTeams: List[str] = []
+    workloadStatus: str = "AVAILABLE"
+    maxTeamCapacity: int = 10
+    invitationStatus: str = "ENROLLED"
+    emailDelivery: str = "NOT_CONFIGURED"
+
+
 # --------------------- Teams ---------------------
 class TeamMemberSchema(BaseModel):
     id: Optional[str] = None
