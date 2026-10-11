@@ -98,7 +98,7 @@ export default function EventDetailPage() {
   const roleBreakdown = summaryData?.memberCountByRole || {};
 
   const submodules = [
-    { title: "Enrolled Roles & Delegation", desc: "Add Volunteers, Judges, Coordinators & Staff", href: `/events/${activeEvent.id}/roles`, icon: <UserPlus className="w-5 h-5 text-sky-400" /> },
+    { title: "Enrolled Roles & Delegation", desc: "Add Volunteers, Judges, Coordinators & Staff", href: `/people?eventId=${encodeURIComponent(activeEvent.id)}`, icon: <UserPlus className="w-5 h-5 text-sky-400" /> },
     { title: "Rounds & Timeline", desc: "Progression quotas & schedule", href: `/events/${activeEvent.id}/rounds`, icon: <Layers className="w-5 h-5 text-indigo-400" /> },
     { title: "Time Slots", desc: "Capacity windows & pitch intervals", href: `/events/${activeEvent.id}/timeslots`, icon: <Clock className="w-5 h-5 text-sky-400" /> },
     { title: "Evaluation Criteria", desc: "Dynamic rubrics & scoring weights", href: `/events/${activeEvent.id}/criteria`, icon: <Trophy className="w-5 h-5 text-amber-400" /> },
@@ -127,7 +127,7 @@ export default function EventDetailPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push(`/events/${activeEvent.id}/roles`)}
+              onClick={() => router.push(`/people?eventId=${encodeURIComponent(activeEvent.id)}`)}
               leftIcon={<UserPlus className="w-3.5 h-3.5 text-sky-400" />}
             >
               Add Staff / Roles
@@ -244,7 +244,7 @@ export default function EventDetailPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => router.push(`/events/${activeEvent.id}/roles`)}
+            onClick={() => router.push(`/people?eventId=${encodeURIComponent(activeEvent.id)}`)}
             rightIcon={<UserPlus className="w-3.5 h-3.5" />}
           >
             Manage Delegated Staff
@@ -337,7 +337,7 @@ export default function EventDetailPage() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => router.push(`/events/${activeEvent.id}/roles`)}
+              onClick={() => router.push(`/people?eventId=${encodeURIComponent(activeEvent.id)}`)}
             >
               Add First Volunteer / Judge
             </Button>
