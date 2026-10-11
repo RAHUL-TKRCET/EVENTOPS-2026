@@ -71,12 +71,12 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-blue-500 selection:text-white">
       {/* Top Navbar */}
       <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-mono font-bold text-white text-lg shadow-lg shadow-indigo-600/30">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-mono font-bold text-white text-lg shadow-lg shadow-blue-600/30">
               EO
             </div>
             <div>
@@ -133,13 +133,13 @@ export default function HomePage() {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-12">
           <div className="text-center max-w-3xl mx-auto space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-mono">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-mono">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Universal Event Operations & RBAC Architecture</span>
             </div>
             <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight font-mono text-white leading-tight">
               Run the event, <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-sky-400 to-emerald-400">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-blue-400 to-yellow-400">
                 not the paperwork.
               </span>
             </h1>
@@ -151,14 +151,14 @@ export default function HomePage() {
           {/* Main Action Section: Event Admin Auth Card vs Already Logged In */}
           <div className="max-w-md mx-auto">
             {currentUser && currentUser.role === "EVENT_ADMIN" ? (
-              <div className="p-8 rounded-3xl border border-indigo-500/40 bg-slate-900/90 shadow-2xl backdrop-blur-md text-center space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 mx-auto">
+              <div className="p-8 rounded-3xl border border-blue-500/40 bg-slate-900/90 shadow-2xl backdrop-blur-md text-center space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 mx-auto">
                   <ShieldCheck className="w-7 h-7" />
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-white font-mono">Active Event Admin Session</h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Logged in as <span className="text-indigo-300 font-semibold">{currentUser.name}</span> ({currentUser.email})
+                    Logged in as <span className="text-blue-300 font-semibold">{currentUser.name}</span> ({currentUser.email})
                   </p>
                 </div>
                 <div className="pt-2">
@@ -185,7 +185,7 @@ export default function HomePage() {
                     }}
                     className={`flex-1 py-2 text-xs font-mono font-bold rounded-lg transition ${
                       authMode === "LOGIN"
-                        ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
                         : "text-slate-400 hover:text-white"
                     }`}
                   >
@@ -199,7 +199,7 @@ export default function HomePage() {
                     }}
                     className={`flex-1 py-2 text-xs font-mono font-bold rounded-lg transition ${
                       authMode === "REGISTER"
-                        ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
                         : "text-slate-400 hover:text-white"
                     }`}
                   >
@@ -219,7 +219,7 @@ export default function HomePage() {
                 </div>
 
                 {errorMsg && (
-                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
+                  <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs">
                     {errorMsg}
                   </div>
                 )}
@@ -287,7 +287,7 @@ export default function HomePage() {
                 placeholder="e.g. evt-01"
                 value={eventCode}
                 onChange={(e) => setEventCode(e.target.value)}
-                className="w-full sm:w-32 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-white placeholder-slate-500 focus:outline-hidden focus:border-indigo-500"
+                className="w-full sm:w-32 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-white placeholder-slate-500 focus:outline-hidden focus:border-blue-500"
               />
               <Button size="sm" variant="outline" type="submit" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
                 Open
@@ -311,7 +311,7 @@ export default function HomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 space-y-3">
-              <div className="w-9 h-9 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
                 <Users className="w-4 h-4" />
               </div>
               <h3 className="text-sm font-bold text-white">Delegated Staffing</h3>
@@ -321,7 +321,7 @@ export default function HomePage() {
             </div>
 
             <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 space-y-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
                 <Calendar className="w-4 h-4" />
               </div>
               <h3 className="text-sm font-bold text-white">Dedicated Event Portals</h3>
@@ -331,7 +331,7 @@ export default function HomePage() {
             </div>
 
             <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 space-y-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <div className="w-9 h-9 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-400">
                 <QrCode className="w-4 h-4" />
               </div>
               <h3 className="text-sm font-bold text-white">Cryptographic QR Passes</h3>
@@ -341,7 +341,7 @@ export default function HomePage() {
             </div>
 
             <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 space-y-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <div className="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400">
                 <Cpu className="w-4 h-4" />
               </div>
               <h3 className="text-sm font-bold text-white">CP-SAT Allocator</h3>
