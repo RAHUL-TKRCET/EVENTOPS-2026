@@ -51,6 +51,8 @@ def seed_database():
             plan="Enterprise",
         )
         db.add(org)
+        # Persist the parent organization before inserting users that reference it.
+        db.commit()
 
         # 2. Users for all 9 roles
         default_pwd = get_password_hash("EventOps@2026")
@@ -85,6 +87,10 @@ def seed_database():
             )
             db.add(user)
 
+        # Persist users before memberships to satisfy the users foreign key.
+        db.commit()
+
+        for uid, uname, uemail, upass, urole in users_data:
             membership = OrganizationMembership(
                 user_id=uid,
                 organization_id="org-01",
