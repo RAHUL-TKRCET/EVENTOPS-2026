@@ -15,6 +15,7 @@ from app.api.v1 import (
     incidents,
     resources,
     analytics,
+    invitations,
 )
 
 api_router = APIRouter()
@@ -30,6 +31,7 @@ api_router.include_router(allocation.router, prefix="/allocation", tags=["Constr
 api_router.include_router(incidents.router, prefix="/incidents", tags=["Incidents & Dispatch"])
 api_router.include_router(resources.router, prefix="/resources", tags=["Logistics & Meal Resources"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Executive Telemetry & KPIs"])
+api_router.include_router(invitations.router, prefix="/invitations", tags=["Secure Invitations"])
 
 
 @api_router.get("/database/tables", tags=["System Governance"])
