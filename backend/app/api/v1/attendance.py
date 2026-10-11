@@ -3,15 +3,23 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.entities import Team, AttendanceRecord
+from app.models.entities import Team, AttendanceRecord, User
+from app.api.deps import get_current_user
+from app.api.event_access import ensure_event_access, get_event_or_404
 from app.schemas.entities import QRScanRequest
 
 router = APIRouter()
 
 
 @router.get("/metrics")
-def get_attendance_metrics(eventId: str = "evt-01", db: Session = Depends(get_db)):
-    """Compute real-time attendance KPIs from database."""
+def get_attendance_metrics(
+    eventId: str = "evt-01",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Compute attendance KPIs only for authorized event operations staff."""
+    event = get_event_or_404(eventId, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "VOLUNTEER", "TECHNICAL_STAFF"})
     teams = db.query(Team).filter(Team.event_id == eventId).all()
     total = len(teams)
     checked_in = sum(1 for t in teams if t.check_in_status == "CHECKED_IN")
@@ -50,8 +58,14 @@ def get_attendance_metrics(eventId: str = "evt-01", db: Session = Depends(get_db
 
 
 @router.get("/records")
-def list_attendance_records(eventId: str = "evt-01", db: Session = Depends(get_db)):
-    """Retrieve audit log of all hardware scans."""
+def list_attendance_records(
+    eventId: str = "evt-01",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve attendance audit records only for authorized event operations staff."""
+    event = get_event_or_404(eventId, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "TECHNICAL_STAFF"})
     records = (
         db.query(AttendanceRecord)
         .filter(AttendanceRecord.event_id == eventId)

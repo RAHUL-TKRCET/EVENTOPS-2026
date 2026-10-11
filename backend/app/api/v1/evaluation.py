@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.events import manager as realtime_manager
-from app.models.entities import Evaluation, Team, Judge, User
+from app.models.entities import Evaluation, Team, Judge, User, Round
+from app.api.event_access import ensure_event_access, ensure_team_scope, get_event_or_404
 from app.schemas.entities import EvaluationCreate, EvaluationResponse
 from app.api.deps import get_current_user
 
@@ -22,10 +23,33 @@ async def submit_evaluation(
     team = db.query(Team).filter(Team.id == payload.teamId).first()
     if not team:
         raise HTTPException(status_code=404, detail="Team not found.")
+    if team.event_id != payload.eventId:
+        raise HTTPException(status_code=403, detail="The team does not belong to the requested event.")
 
-    # Find judge record for this user or create reference
-    judge = db.query(Judge).filter(Judge.user_id == current_user.id).first()
-    judge_id = judge.id if judge else current_user.id
+    event = get_event_or_404(team.event_id, db)
+    ensure_event_access(event, current_user, db, required_roles={"JUDGE"})
+    ensure_team_scope(team, current_user, db)
+
+    round_record = db.query(Round).filter(Round.id == payload.roundId).first()
+    if not round_record or round_record.event_id != team.event_id:
+        raise HTTPException(status_code=404, detail="Evaluation round not found for this event.")
+
+    # Bind scoring to the persisted judge record matching the authenticated
+    # event member, rather than trusting a client-provided judge identifier.
+    judge = (
+        db.query(Judge)
+        .filter(Judge.event_id == team.event_id, Judge.email.ilike(current_user.email))
+        .first()
+    )
+    if not judge:
+        raise HTTPException(status_code=403, detail="No judge assignment is linked to this account.")
+    judge_id = judge.id
+    if judge.id not in (team.assigned_judges or []):
+        raise HTTPException(status_code=403, detail="This team is not assigned to the authenticated judge.")
+    if payload.status not in {"DRAFT", "SUBMITTED", "FINAL"}:
+        raise HTTPException(status_code=400, detail="Unsupported evaluation status.")
+    if not payload.scores or any(not isinstance(value, (int, float)) or value < 0 for value in payload.scores.values()):
+        raise HTTPException(status_code=400, detail="Scores must be non-negative numeric values.")
 
     # Compute total score
     scores = payload.scores
@@ -43,11 +67,14 @@ async def submit_evaluation(
 
     now = datetime.now(timezone.utc)
     if eval_record:
+        if eval_record.status in {"SUBMITTED", "FINAL"}:
+            raise HTTPException(status_code=409, detail="A submitted/final scorecard cannot be overwritten through this endpoint.")
         eval_record.scores = scores
         eval_record.total_score = total_score
         eval_record.feedback = payload.feedback
         eval_record.strengths = payload.strengths
         eval_record.areas_to_improve = payload.areasToImprove
+        eval_record.status = payload.status
         eval_record.submitted_at = now
     else:
         eval_record = Evaluation(
@@ -102,10 +129,17 @@ async def submit_evaluation(
 
 
 @router.get("/team/{team_id}", response_model=List[EvaluationResponse])
-def get_team_evaluations(team_id: str, db: Session = Depends(get_db)):
-    """Retrieve scorecards for a specific team."""
-    evals = db.query(Evaluation).filter(Evaluation.team_id == team_id).all()
+def get_team_evaluations(
+    team_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve scorecards only for a team visible to the current event member."""
     team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found.")
+    ensure_team_scope(team, current_user, db)
+    evals = db.query(Evaluation).filter(Evaluation.team_id == team_id).all()
     return [
         EvaluationResponse(
             id=e.id,
@@ -127,8 +161,14 @@ def get_team_evaluations(team_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/leaderboard/{event_id}")
-def get_leaderboard(event_id: str, db: Session = Depends(get_db)):
-    """Compute real-time sorted leaderboard for event."""
+def get_leaderboard(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Compute a leaderboard only for an authorized event member."""
+    event = get_event_or_404(event_id, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "JUDGE", "PARTICIPANT"})
     teams = db.query(Team).filter(Team.event_id == event_id).order_by(Team.total_score.desc()).all()
     results = []
     for rank, t in enumerate(teams, start=1):

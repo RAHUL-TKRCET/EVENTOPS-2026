@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.entities import Incident, User
+from app.api.event_access import ensure_event_access, get_event_or_404
 from app.schemas.entities import IncidentCreate, IncidentUpdate
 from app.api.deps import get_current_user
 
@@ -12,8 +13,14 @@ router = APIRouter()
 
 
 @router.get("")
-def list_incidents(eventId: str = "evt-01", db: Session = Depends(get_db)):
-    """List operational incidents and alerts."""
+def list_incidents(
+    eventId: str = "evt-01",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List operational incidents only for an authorized event member."""
+    event = get_event_or_404(eventId, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "VOLUNTEER", "TECHNICAL_STAFF"})
     incidents = db.query(Incident).filter(Incident.event_id == eventId).order_by(Incident.reported_at.desc()).all()
     return [
         {
@@ -36,8 +43,19 @@ def list_incidents(eventId: str = "evt-01", db: Session = Depends(get_db)):
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-def report_incident(payload: IncidentCreate, db: Session = Depends(get_db)):
-    """Report a new operational incident."""
+def report_incident(
+    payload: IncidentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Report an incident using the authenticated identity within an assigned event."""
+    event = get_event_or_404(payload.eventId, db)
+    ensure_event_access(
+        event,
+        current_user,
+        db,
+        required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "VOLUNTEER", "TECHNICAL_STAFF"},
+    )
     new_inc = Incident(
         id=f"inc-{uuid.uuid4().hex[:6]}",
         event_id=payload.eventId,
@@ -47,7 +65,7 @@ def report_incident(payload: IncidentCreate, db: Session = Depends(get_db)):
         severity=payload.severity,
         status="OPEN",
         location=payload.location,
-        reported_by=payload.reportedBy,
+        reported_by=current_user.name,
     )
     db.add(new_inc)
     db.commit()
@@ -64,11 +82,18 @@ def report_incident(payload: IncidentCreate, db: Session = Depends(get_db)):
 
 
 @router.patch("/{incident_id}")
-def update_incident(incident_id: str, payload: IncidentUpdate, db: Session = Depends(get_db)):
-    """Update incident status and dispatch assignment."""
+def update_incident(
+    incident_id: str,
+    payload: IncidentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update incident status only for event operations leads and technical staff."""
     inc = db.query(Incident).filter(Incident.id == incident_id).first()
     if not inc:
         raise HTTPException(status_code=404, detail="Incident not found.")
+    event = get_event_or_404(inc.event_id, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "TECHNICAL_STAFF"})
 
     if payload.status:
         inc.status = payload.status

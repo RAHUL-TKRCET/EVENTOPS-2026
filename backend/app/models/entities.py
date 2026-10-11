@@ -384,3 +384,22 @@ class AuditLog(Base):
     ip_address = Column(String(45), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
+
+
+
+class EventInvitation(Base):
+    """One-time invitation capability for an event-scoped role assignment."""
+
+    __tablename__ = "event_invitations"
+
+    id = Column(String(64), primary_key=True)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    event_id = Column(String(64), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_member_id = Column(String(64), ForeignKey("event_members.id", ondelete="CASCADE"), nullable=False, unique=True)
+    invited_by_user_id = Column(String(64), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    email = Column(String(255), nullable=False, index=True)
+    role = Column(String(32), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    redeemed_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)

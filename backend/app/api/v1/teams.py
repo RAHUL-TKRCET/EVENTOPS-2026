@@ -4,9 +4,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.security import generate_qr_token
+from app.core.security import generate_qr_token, verify_qr_token
 from app.core.events import manager as realtime_manager
-from app.models.entities import Team, TeamMember, AttendanceRecord, Venue, Bench, User
+from app.models.entities import Team, TeamMember, AttendanceRecord, Venue, Bench, User, Event, Judge
+from app.api.deps import get_current_user
+from app.api.event_access import ensure_event_access, ensure_team_scope, get_event_or_404
 from app.schemas.entities import (
     TeamCreate,
     TeamResponse,
@@ -15,8 +17,6 @@ from app.schemas.entities import (
     CheckInUpdate,
     QRScanRequest,
 )
-from app.api.deps import get_current_user
-
 router = APIRouter()
 
 
@@ -74,24 +74,73 @@ def map_team_to_response(team: Team, db: Session) -> TeamResponse:
 
 
 @router.get("", response_model=List[TeamResponse])
-def list_teams(eventId: str = "evt-01", db: Session = Depends(get_db)):
-    """List teams registered for an event."""
+def list_teams(
+    eventId: str = "evt-01",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List teams only for an event the caller is assigned to."""
+    event = get_event_or_404(eventId, db)
+    ensure_event_access(event, current_user, db)
     teams = db.query(Team).filter(Team.event_id == eventId).all()
+    active_role = getattr(current_user, "active_role", current_user.role)
+    if active_role == "PARTICIPANT":
+        teams = [
+            team for team in teams
+            if team.lead_email.lower() == current_user.email.lower()
+            or db.query(TeamMember.id).filter(
+                TeamMember.team_id == team.id,
+                TeamMember.email.ilike(current_user.email),
+            ).first()
+        ]
+    elif active_role == "JUDGE":
+        judge = db.query(Judge).filter(
+            Judge.event_id == eventId,
+            Judge.email.ilike(current_user.email),
+        ).first()
+        if not judge:
+            teams = []
+        else:
+            teams = [team for team in teams if judge.id in (team.assigned_judges or [])]
     return [map_team_to_response(t, db) for t in teams]
 
 
 @router.get("/{team_id}", response_model=TeamResponse)
-def get_team(team_id: str, db: Session = Depends(get_db)):
-    """Retrieve details for a single team."""
+def get_team(
+    team_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve a team only inside an authorized event context."""
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:
         raise HTTPException(status_code=404, detail=f"Team '{team_id}' not found.")
+    ensure_team_scope(team, current_user, db)
     return map_team_to_response(team, db)
 
 
 @router.post("", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)
-def register_team(payload: TeamCreate, db: Session = Depends(get_db)):
-    """Register a new team for an event."""
+def register_team(
+    payload: TeamCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Allow team registration only for an assigned participant or event manager."""
+    event = get_event_or_404(payload.eventId, db)
+    active_role = getattr(current_user, "active_role", current_user.role)
+    if active_role == "PARTICIPANT":
+        if payload.leadEmail.strip().lower() != current_user.email.lower():
+            raise HTTPException(status_code=403, detail="Participants may only register a team under their own authenticated email.")
+        ensure_event_access(event, current_user, db, required_roles={"PARTICIPANT"})
+    else:
+        ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR"})
+    if event.status not in ("LIVE", "UPCOMING", "REGISTRATION_OPEN"):
+        raise HTTPException(status_code=403, detail="This event is not accepting team registrations.")
+    deadline = event.registration_deadline
+    if deadline:
+        now = datetime.now(deadline.tzinfo) if deadline.tzinfo else datetime.now()
+        if deadline <= now:
+            raise HTTPException(status_code=403, detail="The registration deadline for this event has passed.")
     team_count = db.query(Team).filter(Team.event_id == payload.eventId).count()
     new_team_id = f"T{(team_count + 1):03d}"
     qr_token = generate_qr_token(new_team_id, payload.eventId)
@@ -143,11 +192,18 @@ def register_team(payload: TeamCreate, db: Session = Depends(get_db)):
 
 
 @router.patch("/{team_id}/checkin", response_model=TeamResponse)
-def update_checkin_status(team_id: str, payload: CheckInUpdate, db: Session = Depends(get_db)):
-    """Update check-in state for team and write attendance record."""
+def update_checkin_status(
+    team_id: str,
+    payload: CheckInUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update check-in only for assigned operational roles in that event."""
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:
         raise HTTPException(status_code=404, detail="Team not found.")
+    event = get_event_or_404(team.event_id, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "VOLUNTEER", "TECHNICAL_STAFF"})
 
     team.check_in_status = payload.status
     now = datetime.now(timezone.utc)
@@ -175,27 +231,28 @@ def update_checkin_status(team_id: str, payload: CheckInUpdate, db: Session = De
 
 
 @router.post("/scan")
-async def scan_qr_token(payload: QRScanRequest, db: Session = Depends(get_db)):
-    """Validate cryptographic QR badge token, mark presence, and broadcast live update."""
+async def scan_qr_token(
+    payload: QRScanRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Validate a QR badge and check in a team only for assigned event staff."""
     token = payload.qrToken.strip()
-    team = (
-        db.query(Team)
-        .filter(
-            (Team.qr_code_token == token) | (Team.id == token)
-        )
-        .first()
-    )
-
-    if not team:
-        # Fallback search if token contains team ID
-        all_teams = db.query(Team).all()
-        team = next((t for t in all_teams if t.id in token or t.name.lower() in token.lower()), None)
-
+    # Only exact stored signed tokens are accepted. Raw team IDs and substring
+    # matches are not credentials and must never trigger attendance changes.
+    team = db.query(Team).filter(Team.qr_code_token == token).first()
     if not team:
         raise HTTPException(
             status_code=404,
-            detail="QR Badge Verification Failed: Unrecognized badge signature or team identifier.",
+            detail="QR Badge Verification Failed: Unrecognized badge signature.",
         )
+
+    if payload.eventId and team.event_id != payload.eventId:
+        raise HTTPException(status_code=403, detail="QR badge is outside the requested event.")
+    if not verify_qr_token(token, team.id, team.event_id):
+        raise HTTPException(status_code=403, detail="QR badge signature is invalid.")
+    event = get_event_or_404(team.event_id, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "VOLUNTEER", "TECHNICAL_STAFF"})
 
     now = datetime.now(timezone.utc)
     team.check_in_status = "CHECKED_IN"
@@ -217,7 +274,8 @@ async def scan_qr_token(payload: QRScanRequest, db: Session = Depends(get_db)):
     db.commit()
 
     # Real-time WebSocket broadcast
-    await realtime_manager.broadcast("attendance:live", {
+    await realtime_manager.broadcast(f"attendance:{team.event_id}:live", {
+        "eventId": team.event_id,
         "type": "TEAM_CHECKED_IN",
         "teamId": team.id,
         "teamName": team.name,

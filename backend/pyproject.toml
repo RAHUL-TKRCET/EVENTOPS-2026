@@ -24,3 +24,9 @@ dependencies = [
 
 [tool.fastapi]
 entrypoint = "app.main:app"
+
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]

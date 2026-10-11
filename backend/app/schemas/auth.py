@@ -43,7 +43,8 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
     role: Optional[UserRole] = "PARTICIPANT"
-    organizationId: Optional[str] = "org-01"
+    organizationId: Optional[str] = None
+    organizationName: Optional[str] = Field(default=None, max_length=255)
 
 
 class TokenResponse(BaseModel):
@@ -51,11 +52,13 @@ class TokenResponse(BaseModel):
     token: str
     accessToken: str
     refreshToken: str
-    expiresIn: int = 86400
+    expiresIn: int = 900
 
 
 class RoleSwitchRequest(BaseModel):
     targetRole: UserRole
+    eventId: Optional[str] = None
+    organizationId: Optional[str] = None
 
 
 class RoleSwitchResponse(BaseModel):
@@ -64,11 +67,38 @@ class RoleSwitchResponse(BaseModel):
     token: str
     accessToken: str
     refreshToken: str
-    expiresIn: int = 86400
+    expiresIn: int = 900
 
 
 class VerifyInviteRequest(BaseModel):
     inviteCode: str
+
+
+
+
+
+
+class EventInvitationCreateRequest(BaseModel):
+    eventId: str = Field(min_length=1, max_length=64)
+    email: EmailStr
+    role: UserRole
+    expiresInHours: int = Field(default=72, ge=1, le=168)
+
+
+class EventInvitationCreateResponse(BaseModel):
+    invitationId: str
+    eventId: str
+    email: EmailStr
+    role: UserRole
+    invitationToken: str
+    expiresAt: str
+    message: str
+
+
+class EventInvitationRedeemRequest(BaseModel):
+    invitationToken: str = Field(min_length=32, max_length=256)
+    password: str = Field(min_length=8, max_length=128)
+    name: Optional[str] = Field(default=None, min_length=2, max_length=255)
 
 
 class VerifyInviteResponse(BaseModel):
@@ -76,5 +106,6 @@ class VerifyInviteResponse(BaseModel):
     role: Optional[str] = None
     organizationId: Optional[str] = None
     organizationName: Optional[str] = None
+    eventId: Optional[str] = None
+    eventName: Optional[str] = None
     message: str
-

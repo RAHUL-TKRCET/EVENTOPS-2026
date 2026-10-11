@@ -6,14 +6,21 @@ from app.models.entities import Team, Venue, Bench, Judge, AllocationConstraint
 from app.schemas.entities import OptimizationRequest
 from app.services.allocation_solver import AllocationSolverService
 from app.services.ai_service import AIService
-from app.api.deps import require_roles, User
+from app.api.deps import get_current_user, require_roles, User
+from app.api.event_access import ensure_event_access, get_event_or_404
 
 router = APIRouter()
 
 
 @router.get("/requirements")
-def get_allocation_requirements(eventId: str = "evt-01", db: Session = Depends(get_db)):
-    """Summary of optimization resources, capacities, and domain breakdown."""
+def get_allocation_requirements(
+    eventId: str = "evt-01",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Summarize allocation resources only for authorized event managers."""
+    event = get_event_or_404(eventId, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR"})
     teams = db.query(Team).filter(Team.event_id == eventId).all()
     venues = db.query(Venue).filter(Venue.event_id == eventId).all()
     total_benches = db.query(Bench).join(Venue).filter(Venue.event_id == eventId).count()
@@ -40,8 +47,14 @@ def get_allocation_requirements(eventId: str = "evt-01", db: Session = Depends(g
 
 
 @router.get("/constraints")
-def get_constraints(eventId: str = "evt-01", db: Session = Depends(get_db)):
-    """Retrieve active hard and soft optimization constraints."""
+def get_constraints(
+    eventId: str = "evt-01",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve constraints only for authorized event managers."""
+    event = get_event_or_404(eventId, db)
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR"})
     hard = [
         {"id": "hc-1", "name": "Strict Room Capacity", "description": "Never assign more teams to a room than physical seating limit.", "category": "CAPACITY", "enabled": True},
         {"id": "hc-2", "name": "Hardware Power Adjacency", "description": "Teams requiring high power must be at benches with power outlets.", "category": "TECHNICAL", "enabled": True},
@@ -64,7 +77,9 @@ def run_optimization(
     db: Session = Depends(get_db),
     _user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"])),
 ):
-    """Execute real Google OR-Tools CP-SAT constraint programming solver."""
+    """Execute the solver only for a permitted event manager."""
+    event = get_event_or_404(payload.eventId, db)
+    ensure_event_access(event, _user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR"})
     result = AllocationSolverService.solve_event_allocation(
         db=db,
         event_id=payload.eventId,
@@ -75,8 +90,8 @@ def run_optimization(
 
 
 @router.post("/parse-prompt")
-def parse_prompt(payload: Dict[str, str]):
-    """Natural language constraint extraction powered by modular AI adapter."""
+def parse_prompt(payload: Dict[str, str], _user: User = Depends(get_current_user)):
+    """Natural language constraint extraction for authenticated users."""
     prompt = payload.get("prompt", "")
     return AIService.parse_natural_language_constraints(prompt)
 

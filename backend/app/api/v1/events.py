@@ -11,6 +11,7 @@ from app.models.entities import (
     TimeSlot,
     EventRule,
     EventMember,
+    OrganizationMembership,
     Team,
     Venue,
     Judge,
@@ -26,6 +27,7 @@ from app.schemas.entities import (
     EventRuleSchema,
 )
 from app.api.deps import get_current_user, get_current_tenant_user, require_roles
+from app.api.event_access import ensure_event_access
 
 router = APIRouter()
 
@@ -116,22 +118,77 @@ def map_event_to_response(event: Event, db: Session) -> EventResponse:
 def list_events(
     organization_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    _tenant_user: Optional[User] = Depends(get_current_tenant_user),
+    current_user: User = Depends(get_current_user),
+    _tenant_user: User = Depends(get_current_tenant_user),
 ):
-    """List events matching tenant isolation boundaries."""
+    """List only events reachable through the authenticated user's current scope."""
+    active_role = getattr(current_user, "active_role", current_user.role)
+    active_event_id = getattr(current_user, "active_event_id", None)
+    active_org_id = getattr(current_user, "active_organization_id", None) or current_user.organization_id
+
     query = db.query(Event)
-    if organization_id and organization_id not in ("null", "undefined"):
-        query = query.filter(Event.organization_id == organization_id)
+    requested_org = organization_id if organization_id and organization_id not in ("null", "undefined") else None
+
+    if active_role == "SUPER_ADMIN" and not active_event_id:
+        if requested_org:
+            query = query.filter(Event.organization_id == requested_org)
+    elif active_event_id:
+        if requested_org and requested_org != active_org_id:
+            raise HTTPException(status_code=403, detail="Cross-Tenant Violation: requested organization is outside this event session.")
+        query = query.filter(Event.id == active_event_id)
+    elif active_role == "ORGANIZATION_ADMIN":
+        if not active_org_id:
+            raise HTTPException(status_code=403, detail="An authorized organization context is required.")
+        if requested_org and requested_org != active_org_id:
+            membership = db.query(OrganizationMembership).filter(
+                OrganizationMembership.user_id == current_user.id,
+                OrganizationMembership.organization_id == requested_org,
+                OrganizationMembership.role == "ORGANIZATION_ADMIN",
+                OrganizationMembership.status == "ACTIVE",
+            ).first()
+            if not membership:
+                raise HTTPException(status_code=403, detail="Cross-Tenant Violation: requested organization is outside your membership.")
+            active_org_id = requested_org
+        query = query.filter(Event.organization_id == active_org_id)
+    else:
+        assigned_event_ids = [
+            row.event_id
+            for row in db.query(EventMember.event_id).filter(
+                EventMember.user_id == current_user.id,
+                EventMember.role == active_role,
+                EventMember.status == "ACTIVE",
+            ).all()
+        ]
+        owned_event_ids = [
+            row.id for row in db.query(Event.id).filter(Event.owner_id == current_user.id).all()
+        ]
+        allowed_ids = set(assigned_event_ids + owned_event_ids)
+        if requested_org:
+            # Event-level users cannot use a query parameter to move into a
+            # different organization. Verify each candidate remains assigned.
+            candidate_ids = [
+                row.id for row in db.query(Event.id).filter(Event.organization_id == requested_org).all()
+            ]
+            if not allowed_ids.intersection(candidate_ids):
+                raise HTTPException(status_code=403, detail="Cross-Tenant Violation: no event assignment exists in that organization.")
+            allowed_ids.intersection_update(candidate_ids)
+        query = query.filter(Event.id.in_(allowed_ids)) if allowed_ids else query.filter(Event.id == "__no_authorized_event__")
+
     events = query.all()
     return [map_event_to_response(e, db) for e in events]
 
 
 @router.get("/{event_id}", response_model=EventResponse)
-def get_event(event_id: str, db: Session = Depends(get_db)):
-    """Retrieve comprehensive event specification."""
+def get_event(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retrieve event specification only for an authorized organization/event member."""
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail=f"Event '{event_id}' not found.")
+    ensure_event_access(event, current_user, db)
     return map_event_to_response(event, db)
 
 
@@ -142,6 +199,26 @@ def create_event(
     current_user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"])),
 ):
     """Create a new event entity with associated rounds and rules."""
+    active_role = getattr(current_user, "active_role", current_user.role)
+    active_event_id = getattr(current_user, "active_event_id", None)
+    if active_event_id or active_role not in ("SUPER_ADMIN", "ORGANIZATION_ADMIN"):
+        raise HTTPException(status_code=403, detail="Only a platform admin or organization admin can create events.")
+
+    target_org_id = payload.organizationId or getattr(current_user, "active_organization_id", None) or current_user.organization_id
+    if active_role == "ORGANIZATION_ADMIN" and not target_org_id:
+        raise HTTPException(status_code=403, detail="An authorized organization scope is required.")
+    if active_role == "ORGANIZATION_ADMIN":
+        membership = db.query(OrganizationMembership).filter(
+            OrganizationMembership.user_id == current_user.id,
+            OrganizationMembership.organization_id == target_org_id,
+            OrganizationMembership.role == "ORGANIZATION_ADMIN",
+            OrganizationMembership.status == "ACTIVE",
+        ).first()
+        if not membership:
+            raise HTTPException(status_code=403, detail="You cannot create events for this organization.")
+    elif target_org_id and current_user.organization_id and target_org_id != current_user.organization_id and active_role != "SUPER_ADMIN":
+        raise HTTPException(status_code=403, detail="You cannot create events for this organization.")
+
     new_id = f"evt-{uuid.uuid4().hex[:8]}"
 
     def parse_dt(dt_str: str) -> datetime:
@@ -152,7 +229,7 @@ def create_event(
 
     event = Event(
         id=new_id,
-        organization_id=payload.organizationId or current_user.organization_id,
+        organization_id=target_org_id,
         owner_id=current_user.id,
         is_personal_event=payload.isPersonalEvent,
         name=payload.name,
@@ -222,10 +299,11 @@ def update_event(
     db: Session = Depends(get_db),
     _user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"])),
 ):
-    """Update event properties."""
+    """Update only an event within the caller's authorized scope."""
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
+    ensure_event_access(event, _user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"})
 
     if payload.name is not None:
         event.name = payload.name
@@ -250,8 +328,16 @@ def update_event(
 
 
 @router.get("/{event_id}/members")
-def get_event_members(event_id: str, db: Session = Depends(get_db)):
-    """List enrolled event members."""
+def get_event_members(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List enrolled event members only for event administrators/platform administrators."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    ensure_event_access(event, current_user, db, required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"})
     members = db.query(EventMember).filter(EventMember.event_id == event_id).all()
     return [
         {
