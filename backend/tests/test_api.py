@@ -325,8 +325,11 @@ def test_evaluation_and_leaderboard():
     eval_data = eval_res.json()
     assert eval_data["totalScore"] == 94.5
 
-    # Check leaderboard
-    lb_res = client.get("/api/v1/evaluation/leaderboard/evt-01")
+    # Check leaderboard using the same authenticated event session.
+    lb_res = client.get(
+        "/api/v1/evaluation/leaderboard/evt-01",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert lb_res.status_code == 200
     leaderboard = lb_res.json()
     assert len(leaderboard) >= 1
