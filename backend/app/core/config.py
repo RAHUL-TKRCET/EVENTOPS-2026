@@ -2,7 +2,7 @@ import os
 import secrets
 from typing import List, Optional
 from pydantic_settings import BaseSettings
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 
 
 class Settings(BaseSettings):
@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     VERSION: str = "2.0.0"
     API_V1_STR: str = "/api/v1"
     PORT: int = Field(default=5000, validation_alias="PORT")
-    ENVIRONMENT: str = Field(default="development", validation_alias="NODE_ENV")
+    ENVIRONMENT: str = Field(default="development", validation_alias=AliasChoices("ENVIRONMENT", "NODE_ENV"))
 
     # Database
     DATABASE_URL: Optional[str] = Field(default=None, validation_alias="DATABASE_URL")
