@@ -138,3 +138,15 @@ def test_registration_rejects_arbitrary_organization_link(client):
         },
     )
     assert response.status_code == 400
+
+def test_pages_origin_preflight_is_allowed(client):
+    response = client.options(
+        "/api/v1/auth/register",
+        headers={
+            "Origin": "https://rahul-tkrcet.github.io",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "https://rahul-tkrcet.github.io"
