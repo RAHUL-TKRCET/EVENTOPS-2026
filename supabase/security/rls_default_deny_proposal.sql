@@ -37,7 +37,8 @@ BEGIN
         'team_members',
         'evaluations',
         'attendance_records',
-        'resource_distributions'
+        'resource_distributions',
+        'event_invitations'
     ]
     LOOP
         EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', target_table);
