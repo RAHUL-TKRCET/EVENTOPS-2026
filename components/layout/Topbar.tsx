@@ -80,7 +80,7 @@ export const Topbar: React.FC = () => {
               </span>
             )}
             <ChevronRight className="w-3 h-3 text-slate-600" />
-            <span className="truncate max-w-[140px] sm:max-w-none">{currentEvent?.name || "VISTRA Hackathon 2026"}</span>
+            <span className="truncate max-w-[140px] sm:max-w-none">{isOrganizationHome ? "Organization workspace" : currentEvent?.name || "VISTRA Hackathon 2026"}</span>
             <ChevronRight className="w-3 h-3 text-slate-600 hidden sm:inline" />
             <span className="text-slate-300 capitalize hidden sm:inline">{pathSegments[0] || "Overview"}</span>
             {pathSegments.length > 1 && (
@@ -99,10 +99,12 @@ export const Topbar: React.FC = () => {
       {/* Right Actions */}
       <div className="flex items-center gap-3">
         {/* Live EventOps Heartbeat Pill */}
-        <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-mono text-emerald-400">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>Realtime Ops Online</span>
-        </div>
+        {!isOrganizationHome && (
+          <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-mono text-emerald-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>Realtime Ops Online</span>
+          </div>
+        )}
 
         {/* Global Search Bar (Trigger Cmd+K) */}
         <button
@@ -117,13 +119,15 @@ export const Topbar: React.FC = () => {
         </button>
 
         {/* AI Copilot Quick Jump */}
-        <button
-          onClick={() => router.push("/ai-assistant")}
-          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-xs text-indigo-300 font-medium transition cursor-pointer"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-          <span>AI Copilot</span>
-        </button>
+        {!isOrganizationHome && (
+          <button
+            onClick={() => router.push("/ai-assistant")}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-xs text-indigo-300 font-medium transition cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+            <span>AI Copilot</span>
+          </button>
+        )}
 
         {/* Notifications Dropdown */}
         <div className="relative">
