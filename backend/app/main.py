@@ -12,7 +12,7 @@ if backend_dir not in sys.path:
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
 from app.database.seed import seed_database
@@ -25,13 +25,31 @@ startup_timestamp = time.time()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: ensure tables exist and base seed dataset is initialized
-    print("[EVENTOPS Backend] Initializing database models and tables...")
-    Base.metadata.create_all(bind=engine)
-    seed_database()
+    # Runtime DDL and demo seeding are opt-in. Production must use a reviewed,
+    # version-controlled migration and must never create/modify tables on boot.
+    environment = settings.ENVIRONMENT.strip().lower()
+    if settings.AUTO_CREATE_SCHEMA:
+        if environment in {"production", "prod"}:
+            raise RuntimeError("AUTO_CREATE_SCHEMA must never be enabled in production.")
+        print("[EVENTOPS Backend] AUTO_CREATE_SCHEMA enabled for a non-production environment.")
+        Base.metadata.create_all(bind=engine)
+        seed_database()
+    else:
+        inspector = inspect(engine)
+        schema_name = "public" if engine.dialect.name == "postgresql" else None
+        existing_tables = set(inspector.get_table_names(schema=schema_name))
+        required_tables = set(Base.metadata.tables.keys())
+        missing_tables = sorted(required_tables - existing_tables)
+        if missing_tables:
+            raise RuntimeError(
+                "Database schema is missing required tables: "
+                + ", ".join(missing_tables)
+                + ". Apply the reviewed migration plan before starting the backend."
+            )
+        print("[EVENTOPS Backend] Existing schema validated; runtime DDL and demo seeding skipped.")
+
     print(f"[EVENTOPS Backend] Server online. Listening on port {settings.PORT}.")
     yield
-    # Shutdown
     print("[EVENTOPS Backend] Server shutting down cleanly.")
 
 
