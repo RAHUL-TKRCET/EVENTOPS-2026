@@ -160,31 +160,63 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
             detail="An account with this email address already exists.",
         )
 
-    # Public self-registration cannot choose privileged/event roles or attach
-    # itself to an arbitrary organization. Organization ownership and event
-    # roles must be granted by a verified provisioning workflow.
-    if payload.role not in (None, "PARTICIPANT"):
+    # Self-registration may create either a participant account or a new
+    # organization with its first owner. It can never attach an account to an
+    # existing organization or assign an event/platform role.
+    if payload.role not in (None, "PARTICIPANT", "ORGANIZATION_ADMIN"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Self-registration creates participant accounts only. Organization and event roles require an authorized invitation.",
+            detail="Self-registration only supports participant or new-organization owner accounts.",
         )
 
+    user_id = f"usr-{uuid.uuid4().hex[:8]}"
+    organization_id = None
+    organization = None
+    target_role = "PARTICIPANT"
+
+    if payload.role == "ORGANIZATION_ADMIN":
+        organization_id = f"org-{uuid.uuid4().hex[:8]}"
+        organization_name = (payload.organizationName or "").strip() or f"{payload.name}'s Organization"
+        organization = Organization(
+            id=organization_id,
+            name=organization_name,
+            type="Organization",
+            country="Not specified",
+            city="Not specified",
+            owner_id=user_id,
+            contact_email=payload.email.lower(),
+            plan="Starter",
+        )
+        target_role = "ORGANIZATION_ADMIN"
+        db.add(organization)
+
     new_user = User(
-        id=f"usr-{uuid.uuid4().hex[:8]}",
+        id=user_id,
         name=payload.name,
         email=payload.email.lower(),
         password_hash=get_password_hash(payload.password),
-        role="PARTICIPANT",
-        organization_id=None,
+        role=target_role,
+        organization_id=organization_id,
     )
     db.add(new_user)
+
+    if organization_id:
+        db.add(
+            OrganizationMembership(
+                user_id=user_id,
+                organization_id=organization_id,
+                role="ORGANIZATION_ADMIN",
+                status="ACTIVE",
+            )
+        )
+
     db.commit()
     db.refresh(new_user)
 
     claims = {
         "email": new_user.email,
         "role": new_user.role,
-        "organizationId": None,
+        "organizationId": new_user.organization_id,
         "name": new_user.name,
     }
     access_token = create_access_token(subject=new_user.id, claims=claims)
