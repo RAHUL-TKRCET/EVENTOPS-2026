@@ -50,7 +50,12 @@ def report_incident(
 ):
     """Report an incident using the authenticated identity within an assigned event."""
     event = get_event_or_404(payload.eventId, db)
-    ensure_event_access(event, current_user, db)
+    ensure_event_access(
+        event,
+        current_user,
+        db,
+        required_roles={"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "VOLUNTEER", "TECHNICAL_STAFF"},
+    )
     new_inc = Incident(
         id=f"inc-{uuid.uuid4().hex[:6]}",
         event_id=payload.eventId,
