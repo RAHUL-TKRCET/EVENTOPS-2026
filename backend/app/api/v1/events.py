@@ -274,12 +274,13 @@ def update_event(
     event_id: str,
     payload: EventUpdate,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"])),
+    current_user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"])),
 ):
-    """Update event properties."""
+    """Update event properties only after checking verified tenant/event ownership."""
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, current_user)
 
     if payload.name is not None:
         event.name = payload.name
@@ -304,8 +305,16 @@ def update_event(
 
 
 @router.get("/{event_id}/members")
-def get_event_members(event_id: str, db: Session = Depends(get_db)):
-    """List enrolled event members."""
+def get_event_members(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List enrolled event members only within verified scope."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, current_user)
     members = db.query(EventMember).filter(EventMember.event_id == event_id).all()
     return [
         {
