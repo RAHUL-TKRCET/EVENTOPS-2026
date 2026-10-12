@@ -122,6 +122,8 @@ export const Topbar: React.FC = () => {
           </div>
         )}
 
+        {!isOrganizationHome && (
+          <>
         {/* Global Search Bar (Trigger Cmd+K) */}
         <button
           onClick={() => setCommandPaletteOpen(true)}
@@ -133,6 +135,8 @@ export const Topbar: React.FC = () => {
             ⌘K
           </kbd>
         </button>
+          </>
+        )}
 
         {/* AI Copilot Quick Jump */}
         {!isOrganizationHome && (
@@ -145,6 +149,8 @@ export const Topbar: React.FC = () => {
           </button>
         )}
 
+        {!isOrganizationHome && (
+          <>
         {/* Notifications Dropdown */}
         <div className="relative">
           <button
@@ -199,6 +205,8 @@ export const Topbar: React.FC = () => {
             </>
           )}
         </div>
+          </>
+        )}
 
         {/* User Profile & Menu */}
         <div className="relative flex items-center gap-2 pl-2 border-l border-slate-800">
