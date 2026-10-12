@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.get("/overview")
-def get_analytics_overview(eventId: str = "evt-01", db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
+def get_analytics_overview(eventId: str, db: Session = Depends(get_db), actor: User = Depends(get_current_user)):
     """Executive metrics only for an authorized event."""
     event = db.query(Event).filter(Event.id == eventId).first()
     if not event:
