@@ -185,6 +185,7 @@ export default function HomePage() {
             <a href="#platform" className="text-sm text-slate-400 transition hover:text-white">Platform</a>
             <a href="#how-it-works" className="text-sm text-slate-400 transition hover:text-white">How it works</a>
             <a href="#event-roles" className="text-sm text-slate-400 transition hover:text-white">Event roles</a>
+            <Link href="/register?accountType=PARTICIPANT" className="text-sm font-semibold text-cyan-200 transition hover:text-white">Participant registration</Link>
           </nav>
 
           <div className="hidden items-center gap-3 md:flex">
@@ -203,7 +204,7 @@ export default function HomePage() {
                   Sign in
                 </button>
                 <Button variant="primary" size="sm" onClick={() => scrollToAccess("REGISTER")} rightIcon={<ArrowRight className="h-4 w-4" />}>
-                  Create Super Admin
+                  Create organization
                 </Button>
               </>
             )}
@@ -226,8 +227,9 @@ export default function HomePage() {
               <a onClick={() => setMobileNavOpen(false)} href="#platform" className="text-sm text-slate-300">Platform</a>
               <a onClick={() => setMobileNavOpen(false)} href="#how-it-works" className="text-sm text-slate-300">How it works</a>
               <a onClick={() => setMobileNavOpen(false)} href="#event-roles" className="text-sm text-slate-300">Event roles</a>
+              <Link onClick={() => setMobileNavOpen(false)} href="/register?accountType=PARTICIPANT" className="text-sm font-semibold text-cyan-200">Participant registration</Link>
               <button type="button" onClick={() => scrollToAccess("LOGIN")} className="text-left text-sm text-slate-300">Sign in</button>
-              <Button variant="primary" size="md" onClick={() => scrollToAccess("REGISTER")} className="w-full">Create Super Admin account</Button>
+              <Button variant="primary" size="md" onClick={() => scrollToAccess("REGISTER")} className="w-full">Create organization account</Button>
             </nav>
           </div>
         )}
@@ -264,10 +266,13 @@ export default function HomePage() {
                 ) : (
                   <>
                     <Button variant="primary" size="lg" onClick={() => scrollToAccess("REGISTER")} rightIcon={<ArrowRight className="h-4 w-4" />}>
-                      Create your Super Admin account
+                      Create your organization account
                     </Button>
                     <Button variant="outline" size="lg" onClick={() => scrollToAccess("LOGIN")}>
                       Sign in to EVENTOPS
+                    </Button>
+                    <Button variant="outline" size="lg" onClick={() => router.push("/register?accountType=PARTICIPANT")}>
+                      Register as a participant
                     </Button>
                   </>
                 )}
