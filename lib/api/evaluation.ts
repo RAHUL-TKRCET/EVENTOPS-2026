@@ -38,6 +38,12 @@ export const evaluationApi = {
     });
   },
 
+  async getMineForEvent(eventId: string): Promise<EvaluationItem[]> {
+    return apiRequest<EvaluationItem[]>(
+      `/evaluation/mine?eventId=${encodeURIComponent(eventId)}`
+    );
+  },
+
   async getLeaderboard(eventId: string): Promise<any[]> {
     return apiRequest<any[]>(`/evaluation/leaderboard/${encodeURIComponent(eventId)}`);
   },
