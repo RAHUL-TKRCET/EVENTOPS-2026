@@ -33,7 +33,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const pathname = usePathname();
   const router = useRouter();
   const { isMobileSidebarOpen, setMobileSidebarOpen, theme, currentRole, currentUser } = useAppStore();
-  const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && isOrganizationManagementRoute(pathname);
+  // Keep the organization landing page full-width; secondary organization pages retain the compact role-aware sidebar.
+  const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && pathname === "/dashboard";
 
   // Public pages that do not require an active session
   const isPublicPage =
