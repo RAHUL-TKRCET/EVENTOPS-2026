@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { teamsApi } from "@/lib/api/teams";
 import { useAppStore } from "@/store";
-import { Team } from "@/types";
+import type { Team } from "@/types";
 
 interface AssignedTeamsState {
   teams: Team[];
