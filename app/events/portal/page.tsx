@@ -67,7 +67,8 @@ export default function StaticEventPortalPage() {
             <div className="flex gap-3"><Users className="h-5 w-5 text-indigo-300" /><div><p className="text-xs text-slate-500">Expected participants</p><p className="text-sm text-slate-200">{event.expectedParticipants ?? "Not specified"}</p></div></div>
           </div>
           {event.status === "DRAFT" && <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">This event is still a draft. The organizer may share a public link, but publication and registration may not be enabled yet.</p>}
-          <div className="flex flex-wrap gap-3 pt-2"><Button variant="primary" onClick={() => router.push(`/events/login?eventId=${encodeURIComponent(event.id)}`)}>Continue to role login</Button><Button variant="outline" onClick={() => router.push("/login")}>Organization Admin login</Button></div>
+          <p className="text-xs text-slate-500">Participant account creation is separate from event enrollment. Registration eligibility is checked by the event registration workflow.</p>
+          <div className="flex flex-wrap gap-3 pt-2"><Button variant="primary" onClick={() => router.push(`/events/login?eventId=${encodeURIComponent(event.id)}`)}>Continue to role login</Button><Button variant="outline" onClick={() => router.push(`/register?accountType=PARTICIPANT&eventId=${encodeURIComponent(event.id)}`)}>Register as a participant</Button><Button variant="outline" onClick={() => router.push("/login")}>Organization Admin login</Button></div>
         </div>
       </section>
     </main>
