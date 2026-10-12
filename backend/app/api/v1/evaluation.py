@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -96,6 +96,38 @@ async def submit_evaluation(
         "roundId": payload.roundId, "totalScore": total_score, "timestamp": now.isoformat(),
     })
     return _evaluation_response(record, team)
+
+
+@router.get("/team/{team_id}/mine", response_model=Optional[EvaluationResponse])
+def get_my_team_evaluation(
+    team_id: str,
+    roundId: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return only this authenticated judge's own scorecard for an assigned team and round."""
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found.")
+
+    judge = _assigned_judge(db, current_user, team.event_id)
+    if not _judge_assigned_to_team(judge, team):
+        raise HTTPException(status_code=403, detail="This judge is not assigned to score the selected team.")
+
+    round_record = db.query(Round).filter(
+        Round.id == roundId,
+        Round.event_id == team.event_id,
+    ).first()
+    if not round_record:
+        raise HTTPException(status_code=404, detail="Round not found for this event.")
+
+    record = db.query(Evaluation).filter(
+        Evaluation.event_id == team.event_id,
+        Evaluation.round_id == roundId,
+        Evaluation.judge_id == judge.id,
+        Evaluation.team_id == team.id,
+    ).first()
+    return _evaluation_response(record, team) if record else None
 
 
 @router.get("/team/{team_id}", response_model=List[EvaluationResponse])
