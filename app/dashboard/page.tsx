@@ -188,20 +188,33 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <div
+        role="note"
+        aria-label="Demo dashboard notice"
+        className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
+      >
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+        <div>
+          <p className="font-semibold">Demo dashboard — sample data, not live operations</p>
+          <p className="mt-1 text-xs leading-5 text-amber-100/80">
+            Some counts, announcements, activity timestamps, allocation quality, and resource totals below are illustrative placeholders. Do not use them to make operational decisions.
+          </p>
+        </div>
+      </div>
       {/* Header Banner */}
       <div className="p-5 rounded-2xl border border-indigo-500/20 bg-gradient-to-r from-indigo-950/40 via-slate-900 to-slate-950 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-              OPERATIONAL HUB
+              DEMO OPERATIONS HUB
             </span>
-            <span className="text-xs text-slate-400 font-mono">36-Hour Continuous Operations</span>
+            <span className="text-xs text-slate-400 font-mono">Illustrative scenario • not live</span>
           </div>
           <h2 className="text-xl md:text-2xl font-bold font-mono text-white mt-1">
             {currentEvent?.name || "VISTRA Hackathon 2026"}
           </h2>
           <p className="text-xs text-slate-400 max-w-2xl mt-0.5">
-            Round 1 Code & Architecture Screening in progress. 120 teams deployed across 24 suites.
+            Sample scenario: Round 1 screening with illustrative team and venue counts.
           </p>
         </div>
 
@@ -236,9 +249,9 @@ export default function DashboardPage() {
       {/* Top 12 Operational KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
         <KPICard
-          title="Registered"
-          value="120"
-          subtitle="Teams Enrolled"
+          title="Sample Registered"
+          value={mockTeams.length}
+          subtitle="Demo teams"
           accentColor="indigo"
           icon={<Users className="w-4 h-4 text-indigo-400" />}
           onClick={() => router.push("/teams")}
@@ -246,7 +259,7 @@ export default function DashboardPage() {
         <KPICard
           title="Checked-In"
           value={checkedInCount}
-          change="95%"
+          change="Sample"
           changeType="positive"
           accentColor="emerald"
           icon={<CheckCircle2 className="w-4 h-4 text-emerald-400" />}
@@ -255,32 +268,32 @@ export default function DashboardPage() {
         <KPICard
           title="Absent"
           value={absentCount}
-          change="6 Flags"
+          change="Demo flags"
           changeType="negative"
           accentColor="rose"
           icon={<XCircle className="w-4 h-4 text-rose-400" />}
           onClick={() => router.push("/attendance/teams")}
         />
         <KPICard
-          title="Active Judges"
-          value={`${activeJudgesCount}/20`}
-          subtitle="2 Overloaded"
+          title="Sample Active Judges"
+          value={`${activeJudgesCount}/${mockJudges.length}`}
+          subtitle="Mock judge dataset"
           accentColor="amber"
           icon={<Scale className="w-4 h-4 text-amber-400" />}
           onClick={() => router.push("/judges")}
         />
         <KPICard
-          title="Pending Evals"
-          value="4"
-          subtitle="Rubric Submissions"
+          title="Sample Pending Evals"
+          value={mockTeams.filter((team) => !team.totalScore).length}
+          subtitle="Derived from mock teams"
           accentColor="sky"
           icon={<Clock className="w-4 h-4 text-sky-400" />}
           onClick={() => router.push("/judge/teams")}
         />
         <KPICard
-          title="Occupied Rooms"
-          value={`${occupiedVenuesCount}/24`}
-          subtitle="120 Benches"
+          title="Sample Occupied Rooms"
+          value={`${occupiedVenuesCount}/${mockVenues.length}`}
+          subtitle="Mock venue dataset"
           accentColor="violet"
           icon={<Building className="w-4 h-4 text-violet-400" />}
           onClick={() => router.push("/venues")}
@@ -294,9 +307,9 @@ export default function DashboardPage() {
           onClick={() => router.push("/venues")}
         />
         <KPICard
-          title="Active Staff"
-          value="28/35"
-          subtitle="Volunteers on Duty"
+          title="Sample Active Staff"
+          value={`${mockVolunteerTasks.filter((task) => task.status !== "COMPLETED").length}/${mockVolunteerTasks.length}`}
+          subtitle="Mock task dataset only"
           accentColor="indigo"
           icon={<HeartHandshake className="w-4 h-4 text-indigo-400" />}
           onClick={() => router.push("/volunteers/tasks")}
@@ -319,17 +332,17 @@ export default function DashboardPage() {
           onClick={() => router.push("/incidents")}
         />
         <KPICard
-          title="Meals Remaining"
+          title="Sample Meals Remaining"
           value="238"
-          subtitle="Dinner Batch A"
+          subtitle="Illustrative value only"
           accentColor="emerald"
           icon={<Box className="w-4 h-4 text-emerald-400" />}
           onClick={() => router.push("/resources/food")}
         />
         <KPICard
-          title="Current Round"
+          title="Sample Current Round"
           value="Round 1"
-          subtitle="48 to Advance"
+          subtitle="Illustrative value only"
           accentColor="violet"
           icon={<Trophy className="w-4 h-4 text-violet-400" />}
           onClick={() => router.push("/rounds")}
@@ -346,11 +359,11 @@ export default function DashboardPage() {
           <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/70 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-slate-100">Live Operations Feed</h3>
-                <p className="text-xs text-slate-400">Sub-second operational state transitions</p>
+                <h3 className="text-sm font-semibold text-slate-100">Sample Operations Feed</h3>
+                <p className="text-xs text-slate-400">Illustrative feed entries — not current system events</p>
               </div>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                ● Live Updates Active
+                DEMO FEED • NOT LIVE
               </span>
             </div>
 
@@ -392,16 +405,16 @@ export default function DashboardPage() {
           {/* Quick Intelligent Optimizer Status */}
           <div className="p-5 rounded-2xl border border-indigo-500/30 bg-slate-900/80 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="font-mono text-xs text-indigo-400 font-bold uppercase">CP-SAT Allocator</span>
+              <span className="font-mono text-xs text-indigo-400 font-bold uppercase">DEMO ALLOCATOR</span>
               <StatusBadge status="OPTIMAL" />
             </div>
-            <h4 className="text-sm font-semibold text-slate-100">Jury & Venue Allocation</h4>
+            <h4 className="text-sm font-semibold text-slate-100">Illustrative Jury & Venue Allocation</h4>
             <p className="text-xs text-slate-400">
-              120 teams matched to 24 suites and 20 evaluators with zero hard constraint violations.
+              Placeholder scenario only. This dashboard has not verified a live solver run or current constraint results.
             </p>
             <div className="space-y-1 pt-1">
               <div className="flex justify-between text-xs font-mono text-slate-400">
-                <span>Domain Match Quality</span>
+                <span>Sample Domain Match Quality</span>
                 <span className="text-indigo-400 font-bold">98.4%</span>
               </div>
               <ProgressBar value={98.4} color="indigo" />
@@ -419,8 +432,8 @@ export default function DashboardPage() {
           {/* Quick Incidents Snapshot */}
           <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="font-mono text-xs text-rose-400 font-bold uppercase">Open Incidents</span>
-              <span className="text-xs font-mono text-slate-400">1 Critical</span>
+              <span className="font-mono text-xs text-rose-400 font-bold uppercase">Sample Incidents</span>
+              <span className="text-xs font-mono text-slate-400">Demo severity mix</span>
             </div>
             <div className="space-y-2">
               {mockIncidents.slice(0, 2).map((inc) => (
@@ -450,7 +463,7 @@ export default function DashboardPage() {
           {/* Quick Resource Reserves */}
           <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="font-mono text-xs text-emerald-400 font-bold uppercase">Logistics Depot</span>
+              <span className="font-mono text-xs text-emerald-400 font-bold uppercase">Sample Logistics Depot</span>
               <span className="text-xs text-slate-400">Inventory Status</span>
             </div>
             <div className="space-y-2 text-xs">
