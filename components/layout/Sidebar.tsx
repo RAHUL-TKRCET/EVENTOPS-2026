@@ -170,28 +170,20 @@ export const Sidebar: React.FC = () => {
       { label: "Database Explorer", href: "/database", icon: <Database className="w-4 h-4" />, badge: "PostgreSQL" },
       { label: "Event Settings", href: "/events/evt-01/settings", icon: <Settings className="w-4 h-4" /> },
     ];
-  } else {
-    // ORGANIZATION_ADMIN
+  } else if (currentRole === "ORGANIZATION_ADMIN") {
+    // Keep organization-level navigation short. Event operations live inside the selected event.
     navItems = [
-      { label: "Executive Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-      { label: "Control Center", href: "/control-center", icon: <Radio className="w-4 h-4" />, badge: "LIVE" },
-      { label: "Events Management", href: "/events", icon: <Calendar className="w-4 h-4" /> },
-      { label: "Teams / Participants", href: "/teams", icon: <Users className="w-4 h-4" />, badge: "120" },
-      { label: "Event Roles Delegation", href: "/events/evt-01/roles", icon: <UserPlus className="w-4 h-4" />, badge: "Staff" },
-      { label: "QR Attendance", href: "/attendance/scanner", icon: <QrCode className="w-4 h-4" /> },
-      { label: "Venues & Benches", href: "/venues", icon: <Building className="w-4 h-4" /> },
-      { label: "Judges & Juries", href: "/judges", icon: <Scale className="w-4 h-4" /> },
-      { label: "Intelligent Allocation", href: "/allocation/optimization", icon: <Cpu className="w-4 h-4" />, badge: "OR-Tools" },
-      { label: "Evaluations", href: "/judge/teams", icon: <ClipboardCheck className="w-4 h-4" /> },
-      { label: "Rounds & Leaderboard", href: "/rounds", icon: <Trophy className="w-4 h-4" /> },
-      { label: "Volunteers", href: "/volunteers", icon: <HeartHandshake className="w-4 h-4" /> },
-      { label: "Resources & Assets", href: "/resources", icon: <Box className="w-4 h-4" /> },
-      { label: "Incidents", href: "/incidents", icon: <AlertTriangle className="w-4 h-4" /> },
-      { label: "Communication", href: "/communication", icon: <Megaphone className="w-4 h-4" /> },
-      { label: "AI Assistant", href: "/ai-assistant", icon: <Bot className="w-4 h-4" />, badge: "Copilot" },
-      { label: "Analytics & Reports", href: "/analytics/attendance", icon: <BarChart3 className="w-4 h-4" /> },
-      { label: "Database Explorer", href: "/database", icon: <Database className="w-4 h-4" />, badge: "PostgreSQL" },
+      { label: "Organization Home", href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+      { label: "People & Roles", href: "/people", icon: <Users className="w-4 h-4" /> },
+      { label: "Events", href: "/events", icon: <Calendar className="w-4 h-4" /> },
+      { label: "Judges", href: "/judges", icon: <Scale className="w-4 h-4" /> },
       { label: "Organization Settings", href: "/settings/organization", icon: <Settings className="w-4 h-4" /> },
+    ];
+  } else {
+    // Fail closed for unknown roles: do not display the broad organization operations menu.
+    navItems = [
+      { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+      { label: "Profile", href: "/settings/profile", icon: <Settings className="w-4 h-4" /> },
     ];
   }
 
