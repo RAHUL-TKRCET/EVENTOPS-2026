@@ -468,7 +468,7 @@ export default function HomePage() {
               {currentUser?.role === "SUPER_ADMIN" ? (
                 <div className="space-y-5 text-center">
                   <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-violet-300/20 bg-violet-300/10 text-violet-200"><ShieldCheck className="h-7 w-7" /></div>
-                  <h3 className="text-xl font-semibold text-white">Your Super Admin workspace is ready</h3>
+                  <h3 className="text-xl font-semibold text-white">Your platform administrator workspace is ready</h3>
                   <p className="text-sm text-slate-400">Signed in as <span className="font-semibold text-cyan-200">{currentUser.name}</span>.</p>
                   <Button variant="primary" size="lg" className="w-full" onClick={() => router.push("/super-admin")} rightIcon={<ArrowRight className="h-4 w-4" />}>Open Super Admin dashboard</Button>
                 </div>
