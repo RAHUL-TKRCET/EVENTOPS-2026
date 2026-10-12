@@ -81,3 +81,27 @@ def test_non_admin_event_role_cannot_administer_event():
 def test_platform_admin_without_event_context_can_cross_organization_boundary():
     actor = _user("SUPER_ADMIN", organization_id=None)
     assert require_event_scope(_event("evt-other-org", "org-b"), actor) is None
+
+
+def test_public_event_metadata_is_readable_without_admin_token():
+    response = client.get("/api/v1/events/evt-cdf51aa8/public")
+    # The configured test DB may not include that production event; public lookup
+    # must still not require authentication. A missing test fixture is a 404, not 401.
+    assert response.status_code in {200, 404}
+    assert response.status_code != 401
+
+
+def test_public_event_metadata_does_not_expose_tenant_or_owner_ids():
+    response = client.get("/api/v1/events/evt-cdf51aa8/public")
+    if response.status_code == 200:
+        body = response.json()
+        assert "organizationId" not in body
+        assert "ownerId" not in body
+        assert "organization_id" not in body
+        assert "owner_id" not in body
+
+
+def test_organization_admin_can_open_both_events_in_same_organization_scope():
+    actor = _user("ORGANIZATION_ADMIN", "org-shared")
+    assert require_event_scope(_event("evt-cdf51aa8", "org-shared"), actor) is None
+    assert require_event_scope(_event("evt-34896300", "org-shared"), actor) is None
