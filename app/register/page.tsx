@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { authApi } from "@/lib/api/auth";
@@ -13,14 +13,23 @@ type AccountType = "ORGANIZATION_CREATOR" | "PARTICIPANT";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setCurrentUser, setCurrentRole } = useAppStore();
   const [name, setName] = useState("");
   const [organizationName, setOrganizationName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [accountType, setAccountType] = useState<AccountType>("ORGANIZATION_CREATOR");
+  const [accountType, setAccountType] = useState<AccountType>(
+    searchParams.get("accountType") === "PARTICIPANT" ? "PARTICIPANT" : "ORGANIZATION_CREATOR"
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (searchParams.get("accountType") === "PARTICIPANT") {
+      setAccountType("PARTICIPANT");
+    }
+  }, [searchParams]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
