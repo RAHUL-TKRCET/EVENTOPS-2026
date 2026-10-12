@@ -126,7 +126,7 @@ export default function EventsListPage() {
             event.type.toLowerCase().includes(query) ||
             (event.description || "").toLowerCase().includes(query)
           }
-          onRowClick={(event) => router.push(`/events/${event.id}`)}
+          onRowClick={(event) => router.push(`/events/detail?eventId=${encodeURIComponent(event.id)}`)}
         />
       ) : null}
     </div>
