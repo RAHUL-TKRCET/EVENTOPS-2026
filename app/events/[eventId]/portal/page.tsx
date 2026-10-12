@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useAppStore } from "@/store";
 import { authApi } from "@/lib/api/auth";
 import { eventsApi } from "@/lib/api/events";
@@ -39,10 +39,9 @@ const eventRoles: { role: UserRole; label: string; desc: string; icon: any; colo
 ];
 
 export default function EventPortalPage() {
-  const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const eventId = params.eventId as string;
+  const eventId = (searchParams.get("eventId") || "").trim();
 
   const { setCurrentUser, setCurrentRole, setCurrentEvent } = useAppStore();
 
