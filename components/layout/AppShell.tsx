@@ -33,7 +33,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const pathname = usePathname();
   const router = useRouter();
   const { isMobileSidebarOpen, setMobileSidebarOpen, theme, currentRole, currentUser } = useAppStore();
-  const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && isOrganizationManagementRoute(pathname);
+  // Hide event-operations chrome only on the Organization Admin landing page.
+  const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && pathname === "/dashboard";
 
   // Public pages that do not require an active session
   const isPublicPage =
