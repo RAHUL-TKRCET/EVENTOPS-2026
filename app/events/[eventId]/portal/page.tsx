@@ -77,7 +77,9 @@ export default function EventPortalPage() {
     if (qRole && eventRoles.some((r) => r.role === qRole)) setSelectedRole(qRole);
     if (qEmail) setEmail(qEmail);
     return () => { active = false; };
-  }, [eventId, searchParams]);
+    // searchParams is a navigation wrapper; eventId is the only route-key dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId]);
 
   const handleCopyPortalLink = () => {
     if (typeof window !== "undefined") {
