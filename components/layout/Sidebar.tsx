@@ -42,7 +42,6 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
-  badge?: string;
   roles?: string[]; // if empty, visible to admins/coordinators
 }
 
@@ -72,7 +71,7 @@ export const Sidebar: React.FC = () => {
   if (currentRole === "SUPER_ADMIN") {
     navItems = [
       { label: "Super Admin Dashboard", href: "/super-admin", icon: <LayoutDashboard className="w-4 h-4" /> },
-      { label: "Organizations", href: "/super-admin/organizations", icon: <Building className="w-4 h-4" />, badge: "Multi-tenant" },
+      { label: "Organizations", href: "/super-admin/organizations", icon: <Building className="w-4 h-4" /> },
       { label: "Users & Accounts", href: "/super-admin/users", icon: <Users className="w-4 h-4" /> },
       { label: "Platform Admins", href: "/super-admin/admins", icon: <ShieldCheck className="w-4 h-4" /> },
       { label: "Platform Analytics", href: "/super-admin/analytics", icon: <BarChart3 className="w-4 h-4" /> },
@@ -81,7 +80,7 @@ export const Sidebar: React.FC = () => {
   } else if (currentRole === "JUDGE") {
     navItems = [
       { label: "Judge Dashboard", href: "/judge", icon: <LayoutDashboard className="w-4 h-4" /> },
-      { label: "My Assigned Teams", href: "/judge/teams", icon: <Users className="w-4 h-4" />, badge: "Active" },
+      { label: "My Assigned Teams", href: "/judge/teams", icon: <Users className="w-4 h-4" /> },
       { label: "Evaluation Rubric", href: "/judge/evaluation/T042", icon: <ClipboardCheck className="w-4 h-4" /> },
       { label: "Evaluation History", href: "/judge/history", icon: <Scale className="w-4 h-4" /> },
       { label: "Scan Team QR", href: "/attendance/scanner", icon: <QrCode className="w-4 h-4" /> },
@@ -90,7 +89,7 @@ export const Sidebar: React.FC = () => {
   } else if (currentRole === "VOLUNTEER") {
     navItems = [
       { label: "Volunteer Dashboard", href: "/volunteers", icon: <LayoutDashboard className="w-4 h-4" /> },
-      { label: "My Tasks", href: "/volunteers/tasks", icon: <ClipboardCheck className="w-4 h-4" />, badge: "5 Tasks" },
+      { label: "My Tasks", href: "/volunteers/tasks", icon: <ClipboardCheck className="w-4 h-4" /> },
       { label: "My Shifts", href: "/volunteers/shifts", icon: <Clock className="w-4 h-4" /> },
       { label: "QR Check-in Scanner", href: "/attendance/scanner", icon: <QrCode className="w-4 h-4" /> },
       { label: "Report Incident", href: "/incidents", icon: <AlertTriangle className="w-4 h-4" /> },
@@ -103,7 +102,7 @@ export const Sidebar: React.FC = () => {
       { label: "My Team", href: "/participant/team", icon: <Users className="w-4 h-4" /> },
       { label: "My Project", href: "/participant/project", icon: <Sparkles className="w-4 h-4" /> },
       { label: "Event Schedule", href: "/participant/schedule", icon: <Calendar className="w-4 h-4" /> },
-      { label: "My QR Pass", href: "/participant/qr", icon: <QrCode className="w-4 h-4" />, badge: "Badge" },
+      { label: "My QR Pass", href: "/participant/qr", icon: <QrCode className="w-4 h-4" /> },
       { label: "Attendance Status", href: "/participant/attendance", icon: <ShieldCheck className="w-4 h-4" /> },
       { label: "My Allocation", href: "/participant/allocation", icon: <Building className="w-4 h-4" /> },
       { label: "Announcements", href: "/participant/announcements", icon: <Megaphone className="w-4 h-4" /> },
@@ -115,7 +114,7 @@ export const Sidebar: React.FC = () => {
       { label: "Technical Dashboard", href: "/technical-staff", icon: <LayoutDashboard className="w-4 h-4" /> },
       { label: "Assigned Rooms", href: "/technical-staff/rooms", icon: <Building className="w-4 h-4" /> },
       { label: "Equipment Inventory", href: "/technical-staff/equipment", icon: <Box className="w-4 h-4" /> },
-      { label: "Technical Tasks", href: "/technical-staff/tasks", icon: <ClipboardCheck className="w-4 h-4" />, badge: "Active" },
+      { label: "Technical Tasks", href: "/technical-staff/tasks", icon: <ClipboardCheck className="w-4 h-4" /> },
       { label: "QR Equipment Scanner", href: "/attendance/scanner", icon: <QrCode className="w-4 h-4" /> },
       { label: "Technical Incidents", href: "/incidents", icon: <AlertTriangle className="w-4 h-4" /> },
       { label: "Announcements", href: "/communication", icon: <Megaphone className="w-4 h-4" /> },
@@ -135,8 +134,8 @@ export const Sidebar: React.FC = () => {
   } else if (currentRole === "COORDINATOR") {
     navItems = [
       { label: "Operations Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-      { label: "Control Center", href: "/control-center", icon: <Radio className="w-4 h-4" />, badge: "LIVE" },
-      { label: "Teams", href: "/teams", icon: <Users className="w-4 h-4" />, badge: "120" },
+      { label: "Control Center", href: "/control-center", icon: <Radio className="w-4 h-4" /> },
+      { label: "Teams", href: "/teams", icon: <Users className="w-4 h-4" /> },
       { label: "QR Check-in Scanner", href: "/attendance/scanner", icon: <QrCode className="w-4 h-4" /> },
       { label: "Attendance Registry", href: "/attendance/teams", icon: <ClipboardCheck className="w-4 h-4" /> },
       { label: "Venues & Benches", href: "/venues", icon: <Building className="w-4 h-4" /> },
@@ -148,18 +147,18 @@ export const Sidebar: React.FC = () => {
       { label: "Resources", href: "/resources", icon: <Box className="w-4 h-4" /> },
       { label: "Incidents", href: "/incidents", icon: <AlertTriangle className="w-4 h-4" /> },
       { label: "Communication", href: "/communication", icon: <Megaphone className="w-4 h-4" /> },
-      { label: "AI Assistant", href: "/ai-assistant", icon: <Bot className="w-4 h-4" />, badge: "Copilot" },
+      { label: "AI Assistant", href: "/ai-assistant", icon: <Bot className="w-4 h-4" /> },
     ];
   } else if (currentRole === "EVENT_ADMIN") {
     navItems = [
       { label: "Event Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-      { label: "Control Center", href: "/control-center", icon: <Radio className="w-4 h-4" />, badge: "LIVE" },
-      { label: "Teams / Participants", href: "/teams", icon: <Users className="w-4 h-4" />, badge: "120" },
-      { label: "Event Roles Delegation", href: "/events/evt-01/roles", icon: <UserPlus className="w-4 h-4" />, badge: "Staff" },
+      { label: "Control Center", href: "/control-center", icon: <Radio className="w-4 h-4" /> },
+      { label: "Teams / Participants", href: "/teams", icon: <Users className="w-4 h-4" /> },
+      { label: "Event Roles Delegation", href: "/events/evt-01/roles", icon: <UserPlus className="w-4 h-4" /> },
       { label: "Participant QR Details", href: "/attendance/scanner", icon: <QrCode className="w-4 h-4" /> },
       { label: "Venues & Benches", href: "/venues", icon: <Building className="w-4 h-4" /> },
       { label: "Judges / Evaluators", href: "/judges", icon: <Scale className="w-4 h-4" /> },
-      { label: "Intelligent Allocation", href: "/allocation/optimization", icon: <Cpu className="w-4 h-4" />, badge: "OR-Tools" },
+      { label: "Intelligent Allocation", href: "/allocation/optimization", icon: <Cpu className="w-4 h-4" /> },
       { label: "Evaluations Oversight", href: "/judge/teams", icon: <ClipboardCheck className="w-4 h-4" /> },
       { label: "Rounds & Progression", href: "/rounds", icon: <Trophy className="w-4 h-4" /> },
       { label: "Volunteers", href: "/volunteers", icon: <HeartHandshake className="w-4 h-4" /> },
@@ -167,33 +166,24 @@ export const Sidebar: React.FC = () => {
       { label: "Incidents Escalation", href: "/incidents", icon: <AlertTriangle className="w-4 h-4" /> },
       { label: "Communication", href: "/communication", icon: <Megaphone className="w-4 h-4" /> },
       { label: "Analytics & Reports", href: "/analytics/attendance", icon: <BarChart3 className="w-4 h-4" /> },
-      { label: "Database Explorer", href: "/database", icon: <Database className="w-4 h-4" />, badge: "PostgreSQL" },
+      { label: "Database Explorer", href: "/database", icon: <Database className="w-4 h-4" /> },
       { label: "Event Settings", href: "/events/evt-01/settings", icon: <Settings className="w-4 h-4" /> },
     ];
-  } else {
-    // ORGANIZATION_ADMIN
+  } else if (currentRole === "ORGANIZATION_ADMIN") {
+    // Keep organization-level navigation short. Event operations are scoped inside an event.
     navItems = [
-      { label: "Executive Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-      { label: "Control Center", href: "/control-center", icon: <Radio className="w-4 h-4" />, badge: "LIVE" },
-      { label: "Events Management", href: "/events", icon: <Calendar className="w-4 h-4" /> },
-      { label: "Teams / Participants", href: "/teams", icon: <Users className="w-4 h-4" />, badge: "120" },
-      { label: "Event Roles Delegation", href: "/events/evt-01/roles", icon: <UserPlus className="w-4 h-4" />, badge: "Staff" },
-      { label: "QR Attendance", href: "/attendance/scanner", icon: <QrCode className="w-4 h-4" /> },
-      { label: "Venues & Benches", href: "/venues", icon: <Building className="w-4 h-4" /> },
-      { label: "Judges & Juries", href: "/judges", icon: <Scale className="w-4 h-4" /> },
-      { label: "Intelligent Allocation", href: "/allocation/optimization", icon: <Cpu className="w-4 h-4" />, badge: "OR-Tools" },
-      { label: "Evaluations", href: "/judge/teams", icon: <ClipboardCheck className="w-4 h-4" /> },
-      { label: "Rounds & Leaderboard", href: "/rounds", icon: <Trophy className="w-4 h-4" /> },
-      { label: "Volunteers", href: "/volunteers", icon: <HeartHandshake className="w-4 h-4" /> },
-      { label: "Resources & Assets", href: "/resources", icon: <Box className="w-4 h-4" /> },
-      { label: "Incidents", href: "/incidents", icon: <AlertTriangle className="w-4 h-4" /> },
-      { label: "Communication", href: "/communication", icon: <Megaphone className="w-4 h-4" /> },
-      { label: "AI Assistant", href: "/ai-assistant", icon: <Bot className="w-4 h-4" />, badge: "Copilot" },
-      { label: "Analytics & Reports", href: "/analytics/attendance", icon: <BarChart3 className="w-4 h-4" /> },
-      { label: "Database Explorer", href: "/database", icon: <Database className="w-4 h-4" />, badge: "PostgreSQL" },
+      { label: "Organization Home", href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+      { label: "People & Roles", href: "/people", icon: <Users className="w-4 h-4" /> },
+      { label: "Events", href: "/events", icon: <Calendar className="w-4 h-4" /> },
+      { label: "Judges", href: "/judges", icon: <Scale className="w-4 h-4" /> },
       { label: "Organization Settings", href: "/settings/organization", icon: <Settings className="w-4 h-4" /> },
     ];
-  }
+  } else {
+    // Fail closed for unknown roles.
+    navItems = [
+      { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+      { label: "Profile", href: "/settings/profile", icon: <Settings className="w-4 h-4" /> },
+    ];
 
   return (
     <aside
@@ -269,16 +259,6 @@ export const Sidebar: React.FC = () => {
               {!isSidebarCollapsed && (
                 <>
                   <span className="truncate flex-1">{item.label}</span>
-                  {item.badge && (
-                    <span
-                      className={cn(
-                        "px-1.5 py-0.2 rounded-full text-[10px] font-mono tracking-tight",
-                        item.badge === "LIVE"
-                          ? "bg-rose-500/20 text-rose-400 animate-pulse border border-rose-500/30"
-                          : item.badge === "OR-Tools"
-                          ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                          : "bg-slate-800 text-slate-400"
-                      )}
                     >
                       {item.badge}
                     </span>
