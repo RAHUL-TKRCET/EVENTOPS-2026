@@ -122,21 +122,31 @@ export const Topbar: React.FC = () => {
           </div>
         )}
 
-        {/* Global Search Bar (Trigger Cmd+K) */}
+        {/* Shared command search remains available, but is compact in the organization workspace. */}
         <button
+          type="button"
+          aria-label="Search operations"
           onClick={() => setCommandPaletteOpen(true)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900/80 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-700 transition cursor-pointer"
+          className={cn(
+            "flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/80 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-700 transition cursor-pointer",
+            isOrganizationHome ? "p-2" : "px-3 py-1.5"
+          )}
         >
           <Search className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Search operations...</span>
-          <kbd className="hidden sm:inline px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-800 text-slate-400 border border-slate-700">
-            ⌘K
-          </kbd>
+          {!isOrganizationHome && (
+            <>
+              <span className="hidden sm:inline">Search operations...</span>
+              <kbd className="hidden sm:inline px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-800 text-slate-400 border border-slate-700">
+                ⌘K
+              </kbd>
+            </>
+          )}
         </button>
 
-        {/* AI Copilot Quick Jump */}
+        {/* AI Copilot is an event-operations action, not an organization-level control. */}
         {!isOrganizationHome && (
           <button
+            type="button"
             onClick={() => router.push("/ai-assistant")}
             className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-xs text-indigo-300 font-medium transition cursor-pointer"
           >
@@ -145,60 +155,63 @@ export const Topbar: React.FC = () => {
           </button>
         )}
 
-        {/* Notifications Dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-900 transition cursor-pointer"
-          >
-            <Bell className="w-4 h-4" />
-            {activeNotificationCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-indigo-500" />
-            )}
-          </button>
+        {/* Mock announcements must not be presented as live notifications in the organization workspace. */}
+        {!isOrganizationHome && (
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="Open announcements"
+              onClick={() => setIsNotifOpen(!isNotifOpen)}
+              className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-900 transition cursor-pointer"
+            >
+              <Bell className="w-4 h-4" />
+              {activeNotificationCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-indigo-500" />
+              )}
+            </button>
 
-          {isNotifOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setIsNotifOpen(false)} />
-              <div className="absolute right-0 top-full mt-2 w-80 rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-2">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <span className="text-xs font-semibold text-slate-100">Live Announcements</span>
-                  <span className="text-[10px] font-mono text-indigo-400">
-                    {mockAnnouncements.length} broadcasts
-                  </span>
-                </div>
+            {isNotifOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsNotifOpen(false)} />
+                <div className="absolute right-0 top-full mt-2 w-80 rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-2">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <span className="text-xs font-semibold text-slate-100">Announcements (demo data)</span>
+                    <span className="text-[10px] font-mono text-indigo-400">
+                      {mockAnnouncements.length} sample items
+                    </span>
+                  </div>
 
-                <div className="space-y-2 max-h-72 overflow-y-auto">
-                  {mockAnnouncements.map((ann) => (
-                    <div
-                      key={ann.id}
-                      className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 text-xs space-y-1 hover:border-slate-700 transition"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-200">{ann.title}</span>
-                        <span className="text-[9px] font-mono text-slate-500">
-                          {ann.targetAudience}
-                        </span>
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {mockAnnouncements.map((ann) => (
+                      <div
+                        key={ann.id}
+                        className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 text-xs space-y-1 hover:border-slate-700 transition"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-slate-200">{ann.title}</span>
+                          <span className="text-[9px] font-mono text-slate-500">{ann.targetAudience}</span>
+                        </div>
+                        <p className="text-slate-400 text-[11px] leading-relaxed">{ann.message}</p>
                       </div>
-                      <p className="text-slate-400 text-[11px] leading-relaxed">{ann.message}</p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
 
-                <button
-                  onClick={() => {
-                    decrementNotificationCount();
-                    setIsNotifOpen(false);
-                    router.push("/communication/history");
-                  }}
-                  className="w-full text-center text-xs text-indigo-400 hover:text-indigo-300 pt-1 font-medium block"
-                >
-                  View Broadcast History →
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      decrementNotificationCount();
+                      setIsNotifOpen(false);
+                      router.push("/communication/history");
+                    }}
+                    className="w-full text-center text-xs text-indigo-400 hover:text-indigo-300 pt-1 font-medium block"
+                  >
+                    View Broadcast History →
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* User Profile & Menu */}
         <div className="relative flex items-center gap-2 pl-2 border-l border-slate-800">
