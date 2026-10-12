@@ -68,7 +68,7 @@ export default function EventsListPage() {
     {
       key: "actions",
       header: "Actions",
-      render: (event) => <Button size="sm" variant="outline" onClick={() => router.push(`/events/${event.id}`)} rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>Open hub</Button>,
+      render: (event) => <Button size="sm" variant="outline" onClick={() => router.push(`/events/detail?eventId=${encodeURIComponent(event.id)}`)} rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>Open hub</Button>,
     },
   ];
 
