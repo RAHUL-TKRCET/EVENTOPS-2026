@@ -85,8 +85,8 @@ def test_platform_admin_without_event_context_can_cross_organization_boundary():
 
 def test_public_event_metadata_is_readable_without_admin_token():
     response = client.get("/api/v1/events/evt-cdf51aa8/public")
-    # The configured test DB may not include that production event; public lookup
-    # must still not require authentication. A missing test fixture is a 404, not 401.
+    # The isolated CI database need not contain production-created events. Missing is
+    # represented by 404; this public-safe endpoint must not demand an admin token.
     assert response.status_code in {200, 404}
     assert response.status_code != 401
 
@@ -102,6 +102,6 @@ def test_public_event_metadata_does_not_expose_tenant_or_owner_ids():
 
 
 def test_organization_admin_can_open_both_events_in_same_organization_scope():
-    actor = _user("ORGANIZATION_ADMIN", "org-shared")
-    assert require_event_scope(_event("evt-cdf51aa8", "org-shared"), actor) is None
-    assert require_event_scope(_event("evt-34896300", "org-shared"), actor) is None
+    actor = _user("ORGANIZATION_ADMIN", "org-e1abe51acc01")
+    assert require_event_scope(_event("evt-cdf51aa8", "org-e1abe51acc01"), actor) is None
+    assert require_event_scope(_event("evt-34896300", "org-e1abe51acc01"), actor) is None
