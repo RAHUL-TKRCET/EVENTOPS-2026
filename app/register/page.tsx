@@ -14,6 +14,7 @@ type AccountType = "ORGANIZATION_CREATOR" | "PARTICIPANT";
 export default function RegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const eventId = (searchParams.get("eventId") || "").trim();
   const { setCurrentUser, setCurrentRole } = useAppStore();
   const [name, setName] = useState("");
   const [organizationName, setOrganizationName] = useState("");
@@ -47,7 +48,14 @@ export default function RegisterPage() {
       });
       setCurrentUser(res.user);
       setCurrentRole(res.user.role);
-      router.push(isOrganizationOwner ? "/dashboard" : "/participant");
+      if (isOrganizationOwner) {
+        router.push("/dashboard");
+      } else {
+        const destination = eventId
+          ? `/participant?eventId=${encodeURIComponent(eventId)}`
+          : "/participant";
+        router.push(destination);
+      }
     } catch (error) {
       setErrorMsg(error instanceof Error ? error.message : "Registration failed. Please try again.");
     } finally {
