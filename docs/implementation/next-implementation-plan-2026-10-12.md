@@ -124,3 +124,24 @@ An Organization Head manages their organization, events, staff, role assignments
 6. Finish invitation/membership lifecycle, sessions/recovery, Volunteer API data, shared portal E2E, then roadmap closeout.
 
 Original estimates are directional; sequence depends on dependencies and evidence, not estimates alone.
+
+## Fresh verification update — 2026-10-12 (follow-up)
+
+### Judge PR #19
+- Current head verified: `23aa429270ee874676a5eccc6e6ab399a83ee13a`.
+- Backend workflow passed: https://github.com/RAHUL-TKRCET/EVENTOPS-2026/actions/runs/38210663414.
+- GitHub Pages static-export workflow passed: https://github.com/RAHUL-TKRCET/EVENTOPS-2026/actions/runs/38210663494.
+- Still open as a draft; browser/direct-route checks were not performed.
+- Additional issue #30 records the remaining integration-test gap: new unit tests stub `_assigned_judge`, so they do not exercise actual persisted judge resolution; real TestClient allow/deny tests and browser verification remain required before merge.
+
+### Live Supabase review
+- Project `kwttdfgxstazmtzpcjnu` (EVENTOPS-2026) is reported `ACTIVE_HEALTHY`, Postgres 17.11.
+- Current migration ledger reports `20261011213317_lock_down_public_data_api_grants` and `20261011213523_create_secure_event_invitations`.
+- Latest Security Advisor snapshot at 2026-10-12 06:40 UTC reports 25 public tables with RLS enabled but no policies. Current advisor list includes organizations, users, organization_memberships, events, event_members, invitations, judges, teams, evaluations, attendance_records, resources, resource_distributions, and other operational tables. Details: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy.
+- Latest Performance Advisor reports 21 foreign-key constraints without a covering index and 15 unused indexes. Treat these as review candidates; do not create/drop indexes solely from an advisor snapshot without querying actual access patterns.
+- This is an observed advisor state, not proof of publicly exploitable row access. Prior tracker evidence says direct `anon`/`authenticated` table grants were revoked; verify grants, actual `DATABASE_URL` role/bypass-RLS behavior, and backend connection path before deciding final policy design.
+- No Supabase schema, grants, policies, migrations, or production data were changed during this follow-up.
+
+### Release decision
+- PR #19 is **not merged**; passing CI does not replace browser verification or the real-helper integration tests in issue #30.
+- PR #8 remains draft/non-mergeable and security-sensitive; no production RLS migration is approved by this update.
