@@ -22,13 +22,13 @@ type EventSummary = {
     role: string;
     title?: string;
     zoneOrDept?: string;
+    zone_or_dept?: string;
     status: string;
   }>;
   totalTeams?: number;
   attendanceScans?: number;
   incidentCount?: number;
   memberCountByRole?: Record<string, number>;
-  teams?: unknown[];
 };
 
 type ApiFailure = {
@@ -63,6 +63,7 @@ export default function EventDetailPage() {
   const [summaryData, setSummaryData] = useState<EventSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<ApiFailure | null>(null);
+  const [summaryUnavailable, setSummaryUnavailable] = useState(false);
   const [copiedPortal, setCopiedPortal] = useState(false);
   const [copiedLogin, setCopiedLogin] = useState(false);
 
@@ -71,6 +72,7 @@ export default function EventDetailPage() {
     setError(null);
     setEvent(null);
     setSummaryData(null);
+    setSummaryUnavailable(false);
 
     if (!eventId) {
       setError({ kind: "not-found", message: "No event identifier was provided." });
@@ -85,14 +87,15 @@ export default function EventDetailPage() {
         const summary = await apiRequest<EventSummary>(`/events/${encodeURIComponent(eventId)}/summary`);
         setSummaryData(summary);
       } catch (summaryError) {
-        // The core event is still usable; operational metrics are shown as unavailable.
+        // The repository's FastAPI events router currently exposes no summary route.
+        // Do not fabricate a count or roster when that endpoint is unavailable.
         const failure = classifyFailure(summaryError);
         if (failure.kind === "unauthenticated" || failure.kind === "forbidden") {
           setError(failure);
           setEvent(null);
           return;
         }
-        setSummaryData(null);
+        setSummaryUnavailable(true);
       }
     } catch (loadError) {
       setError(classifyFailure(loadError));
@@ -103,7 +106,7 @@ export default function EventDetailPage() {
 
   useEffect(() => {
     void loadEvent();
-    // loadEvent captures only the current route's stable event identifier.
+    // loadEvent intentionally refreshes when the selected route id changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
@@ -166,7 +169,6 @@ export default function EventDetailPage() {
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? "Not configured" : date.toLocaleString();
   };
-  const hasSummary = summaryData !== null;
 
   return (
     <div className="space-y-6">
@@ -233,8 +235,10 @@ export default function EventDetailPage() {
           </div>
           <Button size="sm" variant="outline" onClick={() => router.push(`/people?eventId=${encodeURIComponent(event.id)}`)} rightIcon={<UserPlus className="w-3.5 h-3.5" />}>Manage Staff</Button>
         </div>
-        {!hasSummary ? (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">Operational summary is unavailable. The event itself loaded successfully; retry to load counts and roster.</div>
+        {summaryUnavailable || !summaryData ? (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+            Operational counts and roster are unavailable because this backend does not currently provide a verified summary for the selected event. The event itself loaded successfully; no sample metrics are being substituted.
+          </div>
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -258,8 +262,8 @@ export default function EventDetailPage() {
           <div><h3 className="text-sm font-bold text-white font-mono flex items-center gap-2"><Users className="w-4 h-4 text-indigo-400" />Enrolled roles & staff roster</h3><p className="text-xs text-slate-400">Personnel delegated and authorized for this event.</p></div>
           <Link href={`/people?eventId=${encodeURIComponent(event.id)}`} className="text-xs font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1">Manage staff <ArrowRight className="w-3.5 h-3.5" /></Link>
         </div>
-        {!hasSummary ? (
-          <p className="text-sm text-slate-400">Roster is unavailable until the event summary service responds.</p>
+        {summaryUnavailable || !summaryData ? (
+          <p className="text-sm text-slate-400">Roster is unavailable until a verified event-summary endpoint is implemented.</p>
         ) : enrolledMembers.length === 0 ? (
           <div className="p-8 text-center rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-3"><UserPlus className="w-8 h-8 text-slate-500 mx-auto" /><p className="text-xs text-slate-400">No staff members enrolled yet for this event.</p><Button size="sm" variant="outline" onClick={() => router.push(`/people?eventId=${encodeURIComponent(event.id)}`)}>Add Staff / Roles</Button></div>
         ) : (
@@ -267,7 +271,7 @@ export default function EventDetailPage() {
             <table className="w-full text-left text-xs font-mono">
               <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase text-[10px]"><tr><th className="py-2.5 px-3">Name</th><th className="py-2.5 px-3">Role</th><th className="py-2.5 px-3">Email</th><th className="py-2.5 px-3">Title / Zone</th><th className="py-2.5 px-3">Status</th></tr></thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-200">
-                {enrolledMembers.slice(0, 5).map((member) => <tr key={member.id} className="hover:bg-slate-800/30 transition"><td className="py-2.5 px-3 font-medium text-white">{member.name}</td><td className="py-2.5 px-3"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">{member.role}</span></td><td className="py-2.5 px-3 text-slate-400">{member.email}</td><td className="py-2.5 px-3 text-slate-400">{member.title || member.zoneOrDept || "—"}</td><td className="py-2.5 px-3"><span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">{member.status}</span></td></tr>)}
+                {enrolledMembers.slice(0, 5).map((member) => <tr key={member.id} className="hover:bg-slate-800/30 transition"><td className="py-2.5 px-3 font-medium text-white">{member.name}</td><td className="py-2.5 px-3"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">{member.role}</span></td><td className="py-2.5 px-3 text-slate-400">{member.email}</td><td className="py-2.5 px-3 text-slate-400">{member.title || member.zoneOrDept || member.zone_or_dept || "—"}</td><td className="py-2.5 px-3"><span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">{member.status}</span></td></tr>)}
               </tbody>
             </table>
           </div>
