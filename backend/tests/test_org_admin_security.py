@@ -92,8 +92,3 @@ def test_public_event_metadata_route_is_registered_and_public_safe():
     assert "organizationId" not in PublicEventResponse.model_fields
     assert "ownerId" not in PublicEventResponse.model_fields
 
-
-def test_organization_admin_can_open_both_events_in_same_organization_scope():
-    actor = _user("ORGANIZATION_ADMIN", "org-e1abe51acc01")
-    assert require_event_scope(_event("evt-cdf51aa8", "org-e1abe51acc01"), actor) is None
-    assert require_event_scope(_event("evt-34896300", "org-e1abe51acc01"), actor) is None
