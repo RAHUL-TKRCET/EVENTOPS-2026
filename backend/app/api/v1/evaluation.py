@@ -152,6 +152,42 @@ def get_team_evaluations(
     return [_evaluation_response(item, team) for item in records]
 
 
+@router.get("/mine", response_model=List[EvaluationResponse])
+def get_my_evaluations(
+    eventId: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return only scorecards submitted by this judge in their active event."""
+    active_event_id = getattr(current_user, "active_event_id", None)
+    if not active_event_id:
+        raise HTTPException(status_code=403, detail="An active event-scoped judge session is required.")
+
+    if eventId and eventId != active_event_id:
+        raise HTTPException(status_code=403, detail="Evaluation history is restricted to the active event.")
+
+    judge = _assigned_judge(db, current_user, active_event_id)
+    records = (
+        db.query(Evaluation)
+        .filter(
+            Evaluation.event_id == active_event_id,
+            Evaluation.judge_id == judge.id,
+        )
+        .order_by(Evaluation.submitted_at.desc())
+        .all()
+    )
+    team_ids = list({record.team_id for record in records})
+    team_rows = (
+        db.query(Team)
+        .filter(Team.event_id == active_event_id, Team.id.in_(team_ids))
+        .all()
+        if team_ids
+        else []
+    )
+    teams_by_id = {team.id: team for team in team_rows}
+    return [_evaluation_response(record, teams_by_id.get(record.team_id)) for record in records]
+
+
 @router.get("/leaderboard/{event_id}")
 def get_leaderboard(
     event_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
