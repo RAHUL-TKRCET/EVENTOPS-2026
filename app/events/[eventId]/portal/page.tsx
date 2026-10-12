@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { mockEvents } from "@/lib/mock-data/events";
 import { useAppStore } from "@/store";
 import { authApi } from "@/lib/api/auth";
+import { eventsApi } from "@/lib/api/events";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { StatusBadge } from "@/components/ui/Badge";
@@ -47,6 +47,7 @@ export default function EventPortalPage() {
   const { setCurrentUser, setCurrentRole, setCurrentEvent } = useAppStore();
 
   const [event, setEvent] = useState<any>(null);
+  const [eventLoading, setEventLoading] = useState(true);
   const [selectedRole, setSelectedRole] = useState<UserRole>("PARTICIPANT");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,30 +56,28 @@ export default function EventPortalPage() {
   const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
-    // 1. Fetch event from backend or fallback to mock
-    fetch(`http://localhost:5000/api/v1/events/${eventId}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data) setEvent(data);
-        else {
-          const fallback = mockEvents.find((e) => e.id === eventId) || mockEvents[0];
-          setEvent(fallback);
-        }
-      })
-      .catch(() => {
-        const fallback = mockEvents.find((e) => e.id === eventId) || mockEvents[0];
-        setEvent(fallback);
-      });
-
-    // 2. Pre-fill from query params if dispatched via invite link
+    let active = true;
+    async function loadEvent() {
+      setEventLoading(true);
+      try {
+        const result = await eventsApi.getPublicById(eventId);
+        if (active) setEvent(result);
+      } catch (error) {
+        if (active) setErrorMsg(error instanceof Error ? error.message : "Unable to load this event.");
+      } finally {
+        if (active) setEventLoading(false);
+      }
+    }
+    if (eventId) void loadEvent();
+    else {
+      setErrorMsg("This event link is missing its eventId query parameter. Use an updated link from the organizer.");
+      setEventLoading(false);
+    }
     const qRole = searchParams.get("role") as UserRole;
     const qEmail = searchParams.get("email");
-    if (qRole && eventRoles.some((r) => r.role === qRole)) {
-      setSelectedRole(qRole);
-    }
-    if (qEmail) {
-      setEmail(qEmail);
-    }
+    if (qRole && eventRoles.some((r) => r.role === qRole)) setSelectedRole(qRole);
+    if (qEmail) setEmail(qEmail);
+    return () => { active = false; };
   }, [eventId, searchParams]);
 
   const handleCopyPortalLink = () => {
@@ -95,47 +94,25 @@ export default function EventPortalPage() {
     setErrorMsg(null);
 
     try {
-      // 1. Attempt backend event-login
-      const res = await fetch("http://localhost:5000/api/v1/auth/event-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventId,
-          email,
-          password,
-          role: selectedRole,
-        }),
-      });
-
-      if (res.ok) {
-        const json = await res.json();
-        setCurrentUser(json.user);
-        setCurrentRole(selectedRole);
+      if (selectedRole === "ORGANIZATION_ADMIN") {
+        // Org administrators are authenticated by their organization membership,
+        // not by requiring an event-personnel membership row for every event.
+        const session = await authApi.login(email, password, "ORGANIZATION_ADMIN");
+        setCurrentUser(session.user);
+        setCurrentRole("ORGANIZATION_ADMIN");
         if (event) setCurrentEvent(event);
-
-        if (typeof window !== "undefined") {
-          localStorage.setItem("eventops_token", json.accessToken);
-        }
-
-        // Route to respective role portal
-        routeToRolePortal(selectedRole);
+        router.push("/dashboard");
         return;
       }
 
-      // If backend returned error message
-      const errJson = await res.json().catch(() => ({}));
-      if (errJson.message) {
-        throw new Error(errJson.message);
-      }
-
-      // 2. Fallback via local authApi
-      const localRes = await authApi.login(email, password, selectedRole);
-      setCurrentUser(localRes.user);
+      // Event roles must prove an active assignment to this specific event.
+      const session = await authApi.eventLogin(eventId, email, password, selectedRole);
+      setCurrentUser(session.user);
       setCurrentRole(selectedRole);
       if (event) setCurrentEvent(event);
       routeToRolePortal(selectedRole);
-    } catch (err: any) {
-      setErrorMsg(err.message || "Failed to authenticate for this event.");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Failed to authenticate for this event.");
     } finally {
       setIsLoading(false);
     }
@@ -161,18 +138,20 @@ export default function EventPortalPage() {
       case "COORDINATOR":
         router.push("/control-center");
         break;
+      case "ORGANIZATION_ADMIN":
+        router.push("/dashboard");
+        break;
       default:
         router.push("/dashboard");
         break;
     }
   };
 
+  if (eventLoading) {
+    return <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4"><p className="text-slate-400 font-mono text-xs">Loading event details…</p></div>;
+  }
   if (!event) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="text-slate-400 font-mono text-xs">Loading event details...</div>
-      </div>
-    );
+    return <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4"><div className="max-w-lg space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6"><h1 className="text-lg font-bold">Event details unavailable</h1><p role="alert" className="text-sm text-slate-300">{errorMsg || "This event could not be loaded."}</p><Button variant="outline" onClick={() => router.push("/events")}>Back to Events</Button></div></div>;
   }
 
   const activeRoleMeta = eventRoles.find((r) => r.role === selectedRole) || eventRoles[0];
@@ -388,7 +367,7 @@ export default function EventPortalPage() {
 
               <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 font-mono gap-2">
                 <span>Enterprise RBAC Scoped to {event.id}</span>
-                <span>Default Pass: EventOps@2026</span>
+                <span>Event access is verified by the backend.</span>
               </div>
             </div>
           </div>
