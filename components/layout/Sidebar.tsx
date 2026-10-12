@@ -184,6 +184,7 @@ export const Sidebar: React.FC = () => {
       { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
       { label: "Profile", href: "/settings/profile", icon: <Settings className="w-4 h-4" /> },
     ];
+  }
 
   return (
     <aside
