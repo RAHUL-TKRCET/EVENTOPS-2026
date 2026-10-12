@@ -122,7 +122,7 @@ export default function JudgeEvaluationPage() {
     return () => {
       cancelled = true;
     };
-  }, [team?.id, currentRound?.id]);
+  }, [team, currentRound]);
 
   const totalScore = criteria.reduce((sum, item) => sum + item.score, 0);
   const maxTotal = criteria.reduce((sum, item) => sum + item.max, 0);
