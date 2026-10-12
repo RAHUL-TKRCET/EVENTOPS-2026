@@ -13,6 +13,7 @@ import {
   ArrowRight, UserPlus, Copy, ExternalLink, CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
+import { Input, Textarea } from "@/components/ui/Input";
 
 type EventMetrics = {
   totalTeams: number;
@@ -66,10 +67,50 @@ function toEventLoginRoute(eventId: string): string {
   return `/events/login?eventId=${encodeURIComponent(eventId)}`;
 }
 
+
+function EventSettingsForm({ event, onSaved }: { event: EventItem; onSaved: (event: EventItem) => void }) {
+  const [name, setName] = useState(event.name);
+  const [description, setDescription] = useState(event.description || "");
+  const [location, setLocation] = useState(event.location || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    setName(event.name);
+    setDescription(event.description || "");
+    setLocation(event.location || "");
+  }, [event.id, event.name, event.description, event.location]);
+  const save = async (formEvent: React.FormEvent<HTMLFormElement>) => {
+    formEvent.preventDefault();
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const updated = await eventsApi.update(event.id, { name, description, location });
+      onSaved(updated);
+      setNotice("Event settings saved to the backend.");
+    } catch (saveError) {
+      setError(classifyFailure(saveError).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form onSubmit={save} className="space-y-4">
+      {error && <p role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</p>}
+      {notice && <p role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</p>}
+      <Input label="Event name" value={name} onChange={(value) => setName(value)} required />
+      <Textarea label="Description" value={description} onChange={(value) => setDescription(value)} />
+      <Input label="Location" value={location} onChange={(value) => setLocation(value)} />
+      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">Only fields supported by the backend update endpoint can be saved. Branding, access flags, and other settings remain unavailable until their write APIs exist.</div>
+      <Button type="submit" variant="primary" disabled={busy}>{busy ? "Saving…" : "Save event settings"}</Button>
+    </form>
+  );
+}
+
 export default function StaticEventDetailPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const eventId = (searchParams.get("eventId") || "").trim();
+  const section = (searchParams.get("section") || "").trim().toLowerCase();
   const [event, setEvent] = useState<EventItem | null>(null);
   const [metrics, setMetrics] = useState<EventMetrics | null>(null);
   const [members, setMembers] = useState<EventMember[] | null>(null);
@@ -157,7 +198,7 @@ export default function StaticEventDetailPage() {
         <h2 className="font-mono text-lg font-bold text-white">{failure.kind === "unauthenticated" ? "Sign-in required" : failure.kind === "forbidden" ? "Access denied" : failure.kind === "not-found" ? "Event not found" : "Unable to open event hub"}</h2>
         <p role="alert" className="text-sm text-slate-300">{failure.message}</p>
         <div className="flex flex-wrap gap-2">
-          {failure.kind === "unauthenticated" && <Button variant="primary" onClick={() => router.push("/login")}>Sign in</Button>}
+          {failure.kind === "unauthenticated" && <Button variant="primary" onClick={() => router.push(`/events/login?eventId=${encodeURIComponent(eventId)}`)}>Sign in</Button>}
           <Button variant="outline" onClick={() => void loadEvent()}>Retry</Button>
           <Button variant="outline" onClick={() => router.push("/events")}>Back to Events</Button>
         </div>
@@ -170,17 +211,49 @@ export default function StaticEventDetailPage() {
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime()) ? "Not configured" : parsed.toLocaleString();
   };
+  const sectionDefinitions = [
+    { id: "rounds", title: "Rounds & timeline", description: "Configured event rounds and progression quotas.", icon: <Layers className="w-5 h-5 text-indigo-400" /> },
+    { id: "timeslots", title: "Time slots", description: "Configured scheduling windows and capacity.", icon: <Clock className="w-5 h-5 text-sky-400" /> },
+    { id: "criteria", title: "Evaluation criteria", description: "Criteria configured within each event round.", icon: <Trophy className="w-5 h-5 text-amber-400" /> },
+    { id: "rules", title: "Event rules & safety", description: "Persisted eligibility and code-of-conduct rules.", icon: <ShieldCheck className="w-5 h-5 text-emerald-400" /> },
+    { id: "settings", title: "Event settings", description: "Event metadata managed through the event API.", icon: <Settings className="w-5 h-5 text-slate-400" /> },
+  ];
+  const selectedSection = sectionDefinitions.find((item) => item.id === section) ?? null;
   const submodules = [
     { title: "People & role assignments", desc: "Add judges, volunteers, coordinators and event staff", href: `/people?eventId=${encodeURIComponent(event.id)}`, icon: <UserPlus className="w-5 h-5 text-sky-400" /> },
-    { title: "Rounds & Timeline", desc: "Progression quotas and schedule", href: `/events/${encodeURIComponent(event.id)}/rounds`, icon: <Layers className="w-5 h-5 text-indigo-400" /> },
-    { title: "Time Slots", desc: "Capacity windows and pitch intervals", href: `/events/${encodeURIComponent(event.id)}/timeslots`, icon: <Clock className="w-5 h-5 text-sky-400" /> },
-    { title: "Evaluation Criteria", desc: "Configured rubrics and scoring weights", href: `/events/${encodeURIComponent(event.id)}/criteria`, icon: <Trophy className="w-5 h-5 text-amber-400" /> },
-    { title: "Event Rules & Safety", desc: "Eligibility and code of conduct", href: `/events/${encodeURIComponent(event.id)}/rules`, icon: <ShieldCheck className="w-5 h-5 text-emerald-400" /> },
-    { title: "Event Settings", desc: "Event metadata, banner and access flags", href: `/events/${encodeURIComponent(event.id)}/settings`, icon: <Settings className="w-5 h-5 text-slate-400" /> },
-  ];
+    ...sectionDefinitions.map((item) => ({ title: item.title, desc: item.description, href: `/events/detail?eventId=${encodeURIComponent(event.id)}&section=${item.id}`, icon: item.icon })),
+  ];;
 
   return (
     <div className="space-y-6">
+      {selectedSection && (
+        <section className="rounded-2xl border border-indigo-500/30 bg-slate-900/80 p-5 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl border border-slate-700 bg-slate-800 p-2">{selectedSection.icon}</div>
+            <div className="flex-1"><h3 className="text-base font-semibold text-white">{selectedSection.title}</h3><p className="mt-1 text-sm text-slate-400">{selectedSection.description}</p></div>
+            <Button variant="outline" size="sm" onClick={() => router.push(`/events/detail?eventId=${encodeURIComponent(event.id)}`)}>Back to overview</Button>
+          </div>
+          {section === "rounds" && (event.rounds?.length ? <div className="space-y-3">{event.rounds.map((round) => (
+            <div key={round.id} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold text-white">{round.order}. {round.name}</h4><StatusBadge status={round.status} /></div>
+              <p className="text-xs text-slate-400">{dateLabel(round.startTime)} – {dateLabel(round.endTime)}</p><p className="text-xs text-slate-300">Advancement quota: {round.qualifyingQuota}</p><p className="text-xs text-slate-400">{round.criteria?.length ?? 0} configured criteria</p>
+            </div>
+          ))}</div> : <p className="text-sm text-slate-400">No rounds are configured for this event yet.</p>)}
+          {section === "timeslots" && (event.timeSlots?.length ? <div className="grid gap-3 sm:grid-cols-2">{event.timeSlots.map((slot) => (
+            <div key={slot.id} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 space-y-2"><h4 className="font-semibold text-white">{slot.label}</h4><p className="text-xs text-slate-400">{dateLabel(slot.startTime)} – {dateLabel(slot.endTime)}</p><p className="text-xs text-slate-300">Capacity: {slot.capacity}</p></div>
+          ))}</div> : <p className="text-sm text-slate-400">No time slots are configured for this event yet.</p>)}
+          {section === "criteria" && (event.rounds?.some((round) => round.criteria?.length) ? <div className="space-y-4">{event.rounds.flatMap((round) => round.criteria.map((criterion) => ({ ...criterion, roundName: round.name, roundId: round.id }))).map((criterion) => (
+            <div key={`${criterion.roundId}-${criterion.id}`} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 space-y-2">
+              <div className="flex flex-wrap justify-between gap-2"><h4 className="font-semibold text-white">{criterion.name}</h4><span className="text-xs text-indigo-300">Max score: {criterion.maxScore}</span></div><p className="text-xs text-slate-400">Round: {criterion.roundName} · Weight: {(criterion.weight * 100).toFixed(1)}%</p><p className="text-sm text-slate-300">{criterion.description || "No description provided."}</p>
+            </div>
+          ))}</div> : <p className="text-sm text-slate-400">No evaluation criteria are configured for this event yet.</p>)}
+          {section === "rules" && (event.rules?.length ? <div className="space-y-3">{event.rules.map((rule, index) => (
+            <div key={`${rule.title}-${index}`} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 space-y-1"><div className="flex flex-wrap items-center gap-2"><h4 className="font-semibold text-white">{rule.title}</h4><span className="text-xs text-slate-400">{rule.category}</span>{rule.isMandatory && <span className="text-xs text-amber-300">Mandatory</span>}</div><p className="text-sm text-slate-300">{rule.description}</p></div>
+          ))}</div> : <p className="text-sm text-slate-400">No rules are configured for this event yet.</p>)}
+          {section === "settings" && <EventSettingsForm event={event} onSaved={setEvent} />}
+          {section !== "settings" && <p className="text-xs text-slate-500">Displayed from the authorized event API response. Changes are available only through implemented backend write endpoints.</p>}
+        </section>
+      )}
       <div className="flex items-center justify-between gap-3">
         <Button variant="outline" size="sm" onClick={() => router.push("/events")}>← Back to Events</Button>
         <Button variant="outline" size="sm" onClick={() => void loadEvent()}>Refresh event</Button>
