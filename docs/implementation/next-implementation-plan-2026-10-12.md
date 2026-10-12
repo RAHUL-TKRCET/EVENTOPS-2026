@@ -1,187 +1,99 @@
 # EVENTOPS-2026 — Next Implementation Plan
-**Planning baseline:** 2026-10-12
-**Repository:** https://github.com/RAHUL-TKRCET/EVENTOPS-2026
-**Basis:** current main, data/roadmap.csv, organization-scoped implementation tracker, architecture notes, registration findings, and open PRs/issues. This plan distinguishes code implementation, CI evidence, deployment evidence, and live end-to-end evidence.
+**Plan date:** 2026-10-12  
+**Basis:** Current `data/roadmap.csv`, open PRs #5 and #8, and existing issue/phase references. This is a planning artifact, not a claim that implementation or live validation has already happened.
 
-## Product intent
-An Organization Head manages their organization, events, staff, role assignments, and operations from one central workspace. Each event has its own workforce and operational context. An event link identifies an event but never grants authorization. For every protected action, the backend verifies identity, organization membership, event assignment, role, action, and target-object scope. Organization administrators can manage people and role memberships without impersonating those roles; managing judges does not grant permission to submit scores as a judge.
+## Executive direction
+Sequence the next cycle as: (1) close the live acceptance gap left by merged PR #34, (2) finish the data-backed Judge workflow and prove real assignment resolution, (3) finish event portal/static URL contracts and member lifecycle integration, (4) complete cross-role end-to-end regression, and (5) prepare database security only after identity, DB role, backup/restore and staging evidence is available. Keep production Supabase read-only until its explicit rollout gate passes.
 
-## Current baseline
-- Organization-owner registration and the Organization Admin workspace are implemented, but the complete owner registration/role-routing journey still needs live browser verification.
-- Event-scope checks have been added across multiple operational API routes. The full protected-route audit and negative tests still need completion.
-- Secure invitation endpoints and random, hashed, expiring, single-use invitation tokens are implemented. Email delivery is not configured and the deployed acceptance journey remains unverified.
-- People & Roles was merged in PR #15. Invitation create/list/revoke and acceptance UI exist; activate/deactivate for existing memberships and role/assignment changes still need reviewed mutation APIs.
-- Open drafts checked 2026-10-12: PR #16 organization navigation, #17 compact organization Topbar, #18 dashboard demo-data labeling, #19 Judge queue/saved scorecard. These overlap or build on common bases; review and rebase deliberately rather than blindly merging.
-- PR #5 has unresolved review feedback on dynamic event URLs with GitHub Pages static export. The current app/events/[eventId]/layout.tsx generates only evt-01; app/events/[eventId]/login/page.tsx still uses hard-coded localhost API URLs, mock-event fallback, and global-login fallback after event-login failure.
-- PR #8 security/RLS work remains draft/non-mergeable. EVENTOPS uses custom JWTs and SQLAlchemy via private DATABASE_URL; do not assume Supabase browser auth.uid() maps to application identity. The roadmap reports direct anon/authenticated table grants were revoked and migration artifacts exist, but schema, DB connection role, policies and live behavior remain to be verified.
-- Dashboard and role pages still contain mock datasets or fabricated operational metrics/activity statements. A static build alone is not operational verification.
+## Sprint 0 — Release acceptance for PR #34 (P0; first)
+**Source:** Roadmap phases 9 and 15–17; issue #33; merge commit `471ccce0e9b1864c39d3a09c8739c3ad396d8792`.  
+**Already verified:** Backend tests, FastAPI deployment, and GitHub Pages build/deployment passed on the merge commit (workflow runs 38255961047, 38255961042, 38255961055).  
+**Work**
+1. Confirm live frontend and backend correspond to the intended release.
+2. With a real active Organization Admin session, open `evt-cdf51aa8` and `evt-34896300` through the Events list and `/events/detail?eventId=<id>`; test direct navigation and refresh.
+3. Verify title/details and API-backed metrics/roster, with clear unavailable states if data is absent.
+4. Test unauthenticated (401), cross-organization (403), unknown event (404), and unassigned event-role denial; verify no Super Admin privilege elevation.
+5. Audit hub-reachable reads/writes (analytics, event members, rounds/criteria, schedule, settings) for server-side scope checks. Settings must not claim save without confirmed persistence.
+**Done when:** Browser/API evidence is recorded in issue #33 and roadmap. CI/deployment success alone does not close this phase.
 
-## Next sprint sequence
+## Sprint 1 — Judge workflow backed by persisted assignments (P0)
+**Source:** Roadmap phases 1 and 5; issue #20; phase 13; `feat/judge-scoped-team-queue`; PR #19 history and issue #30.  
+**Work**
+1. Reconcile current branch/PR head with roadmap evidence; the recorded head `c1416f178af620da41b8bd3bef7fd22527f7957f` does not prove later changes passed.
+2. Replace remaining mocked judge assignment, team detail, scorecard, criteria, or history dependencies with persisted event-scoped API data.
+3. Add integration tests using actual persisted assignment resolution rather than stubbing `_assigned_judge`.
+4. Cover assigned judge allow, unassigned team deny, wrong event/round deny, own-scorecard isolation, saved score retrieval, and blank new scorecards; verify explicit rubric/criteria IDs.
+5. Run backend tests and static export; add direct-route and signed-in browser tests.
+**Done when:** No demo score/team substitution, persisted assignment tests pass, and exact-head CI plus browser evidence is attached to the tracking issue.
 
-### 1. P0 — Finish Judge assigned-team workflow and saved scorecards
-**Tracking issue:** #20 · **Current PR:** #19
-- Review PR #19 and check Pages static export/backend CI results on the exact current head SHA.
-- Dashboard, team queue, rubric, and history must use persisted API responses, without silent mock fallbacks.
-- Every read/write must be scoped server-side to authenticated judge, active event, assignment, team, and round.
-- If scorecard lookup fails, disable submission; never overwrite a scorecard whose current value could not be verified.
-- Test wrong role, unassigned team, wrong event/round, and access to another judge's scorecard.
-- Browser-smoke assigned, empty, loading, error, and saved-score states; record exact evidence.
-**Exit:** correct assignments and saved scores appear only to the authorized judge; CI and browser checks pass on the exact PR head.
+## Sprint 2 — Event portal and canonical static-host URL contract (P0)
+**Source:** Roadmap phases 3–4; PR #5 unresolved P1 review; event URL and portal E2E issues.  
+**Work**
+1. Resolve PR #5’s open static-export review before merging: document a canonical URL contract compatible with GitHub Pages (query/hash/static route), not arbitrary post-deploy dynamic path generation.
+2. Add tests for open, refresh, copied link, missing ID, and back/forward navigation for events created after deployment.
+3. Complete shared public event portal: allow-listed metadata only, role options from event contract, clear login/loading/not-found/API failure states, no mock fallback.
+4. Make event creation, Events list, portal, login, and hub generate/consume one base-path-aware URL format.
+5. Verify portal does not expose owner/organization IDs or protected rosters before authorization.
+**Done when:** PR #5’s P1 thread is addressed, URL format is consistent across entry points, and Pages direct-open/refresh tests pass. Do not merge PR #5 only because documentation builds.
 
-### 2. P0 — Remove local-only and unsafe event-login fallbacks
-**Tracking issue:** #21
-- Replace hard-coded http://localhost:5000 calls with the centralized configured API client.
-- Remove mock-event fallback; unknown/unreachable events must show an error or not-found state, never the first fixture.
-- Remove global authApi.login fallback after event-login failure. Fail closed.
-- Backend validates active account, credentials, event membership, requested role, organization/event scope and permissions.
-- Query-string role/email values are prefill only, never authority; avoid unauthenticated role-discovery endpoints that enumerate memberships.
-- Add tests for invalid credentials, unassigned user, wrong role, inactive membership, wrong event, API unavailable, and direct URL attempts.
-**Exit:** failed event login cannot create a dashboard session; production code has no localhost or mock-event fallback.
+## Sprint 3 — Member lifecycle and invitation UI integration (P1)
+**Source:** Roadmap phases 6 and 10; merged PR #15; `feat/secure-invitation-lifecycle` and `feat/people-roles-workspace` notes.  
+**Work**
+1. Reconcile each branch/PR against main and identify what is deployed versus branch-only; avoid duplicating invitation model/UI work.
+2. Verify create/list/verify/accept/revoke against deployed backend: expiry, reuse, revoked token, wrong org/event, role allow-list, existing-user acceptance, and audit events.
+3. Keep email delivery labelled `NOT_CONFIGURED` until a real provider is configured and tested; manual copy-link delivery must be explicit.
+4. Define backend contracts for activating/deactivating memberships and changing role/event assignments; enforce privileged authorization and audit every mutation.
+5. Implement UI only after API contracts and denial tests exist; revocation must take effect on subsequent protected requests.
+**Done when:** Invitation flows pass deployed E2E; membership changes have tested backend endpoints and audit trail; UI does not imply email or mutation success without confirmation.
 
-### 3. P0 — Decide the canonical URL compatible with GitHub Pages static export
-**Tracking issue:** #22 · **Related PR:** #5
-- Choose a canonical approach that works with static export: for example, a pre-rendered portal route with a query/hash event identifier, or hosting with verified dynamic rewrite support.
-- Event creation must return exactly the URL format that the deployed host can route.
-- Resolve public event metadata from a durable unique slug/ID via backend API; no mock fallback.
-- Define invalid/disabled/unpublished event behavior and preserve or alias existing links as needed.
-- Update the plan in PR #5, address its unresolved P1 review feedback, and resolve conflicts only after the URL contract and tests are updated.
-**Exit:** direct open, copied link, and refresh for a newly created event work on deployed hosting; the URL never grants authorization.
+## Sprint 4 — Sessions, recovery and remaining role journeys (P1)
+**Source:** Roadmap phase 7 and phases 1–5.  
+**Work**
+1. Inventory current JWT/access/refresh behavior and configuration without printing secrets.
+2. Choose and document session model; test expiry, refresh-token rejection on protected HTTP/WebSocket calls, revocation semantics and membership/role revalidation.
+3. Replace simulated password recovery with a real, rate-limited, single-use and expiring recovery flow, or explicitly mark it unavailable until approved.
+4. Assess privileged MFA as a product/security decision; do not represent it as available unless implemented.
+5. Finish role route matrix for Super Admin, Organization Admin, Event Admin, Judge, Volunteer, Participant, Coordinator, Technical Staff and Resource Manager, including direct navigation and denied states.
+**Done when:** Integration tests cover expired/revoked sessions, recovery abuse cases, role escalation and direct-route access; rollout notes distinguish implemented features from deferred ones.
 
-### 4. P0 — Consolidate role-aware navigation and truthful dashboards
-**Tracking issue:** #23 · **Related PRs:** #16, #17, #18
-- Review overlapping draft PRs and sequence/rebase them against current main, avoiding duplicate or conflicting edits.
-- Organization Admin navigation focuses on Organization Home, Events, People & Roles, Judges, and Settings. Event operations are reached within the selected-event context.
-- Test route visibility, active links, direct URL behavior, and desktop/mobile layout per role.
-- Replace mock metrics with API data when a valid endpoint exists; otherwise clearly label the whole view as demo data. Remove unsupported live/optimal/solver-success claims.
-- API-backed screens provide loading, empty, error and retry states.
-- Hiding a UI control is not authorization; backend checks remain authoritative.
-**Exit:** dashboards make no unverified operational claims, role navigation is consistent, and static/browser checks pass.
+## Sprint 5 — Database/RLS readiness gate (P0 security; prepare first, apply last)
+**Source:** Roadmap phase 8; draft PR #8; issues #7/#9; read-only Supabase advisor/migration notes.  
+**Work before any migration**
+1. Verify production FastAPI `DATABASE_URL` identity, object ownership, grants, role memberships and whether the connection bypasses RLS. Do not assume `auth.uid()` maps to EVENTOPS custom string IDs.
+2. Inventory table/view/function/sequence exposure and direct API grants; distinguish “RLS enabled without policies” from actual external exposure using effective grants and query role.
+3. Take a recoverable backup and rehearse restore; reconcile schema and migration history safely, with no destructive reset.
+4. Create a table-by-table operation matrix (select/insert/update/delete) for anonymous, participant, judge, event admin, organization admin and platform admin; identify service-role-only tables and append-only audit data.
+5. Rework PR #8 into a reviewed staging-only migration/test proposal aligned to the real auth path. Test clean install, upgrade from a sanitized production-like snapshot, and PostgreSQL app flows.
+6. Verify deny paths, migration drift, grant/policy coverage and Supabase advisors after staging.
+**Production gate:** No production schema/grant/RLS change until backup+restore, staging acceptance, reviewed migration, rollback/forward-fix plan, explicit approval and change window are recorded. Never apply generic `auth.uid()` policies blindly or disable RLS as routine rollback.
 
-### 5. P0 release gate — Authorization and database safety
-**Tracking issue:** #24 · **Related:** PR #8 and security issue #9
-- Re-audit every protected FastAPI route using identity → organization membership → active event assignment → role permission → target-object scope.
-- Test org A/B, event A/B, wrong role, revoked membership, forged IDs/organization headers, anonymous access and unauthorized writes.
-- Verify the actual DATABASE_URL database role/grants, whether it bypasses RLS, migration history, schema drift and real API database access behavior.
-- Capture schema/grants/policies baseline and perform a verified backup-and-restore rehearsal.
-- Build a table-by-table read/write policy matrix from real ownership relationships. Keep audit logs append-only and membership mutations privileged.
-- Test proposed migrations on production-like staging with synthetic data and regression tests.
-- Do not merge/apply production RLS changes until review, staging, verified backup/restore, rollback/forward-fix plan and explicit owner approval are recorded.
-**Exit:** authorized and denied behavior is demonstrated at API and database layers; residual risks and evidence are documented. No direct client grants is not by itself proof that database security is complete.
+## Sprint 6 — Release engineering, observability and roadmap hygiene (P1)
+**Source:** Roadmap phase 9 and phases 12–14.  
+**Work**
+1. Standardize release evidence: commit SHA, backend test run, static export run, backend deployment, Pages deployment, and separately recorded browser E2E.
+2. Define smoke checks and rollback/forward-fix playbook; capture backend health/version and errors without exposing tokens or personal data.
+3. Update roadmap only from verified current evidence; remove stale branch/head notes when superseded and label duplicated phase rows as summary versus detailed follow-up.
+4. Consolidate superseded branches/issues after confirming unique fixes are preserved; do not merge old PRs solely to clear the queue.
+**Done when:** Every release has auditable evidence, roadmap status matches reality, and blockers have one canonical issue/PR.
 
-### 6. P1 — Complete People & Roles and invitation lifecycle
-**Tracking issue:** #25
-- Reuse existing invitation model/endpoints and People & Roles UI; do not duplicate tables or contracts.
-- Test deployed invite → copy link → verify → accept → authenticate as assigned role.
-- Reject expired, revoked, reused, wrong-email/role/event and cross-organization tokens. Audit sensitive changes without logging raw tokens.
-- Implement reviewed APIs for existing-membership activation/deactivation and role/assignment changes, or keep unsupported controls disabled.
-- Ensure membership revocation takes effect according to the selected session design.
-- Email delivery is NOT_CONFIGURED until a provider is integrated and tested; a copied link is not an email sent.
-**Exit:** deployed positive/negative invitation tests pass and the UI reports outcomes honestly.
+## Dependency order
+1. Issue #33 live acceptance and dependent-endpoint audit.
+2. Judge persisted assignment integration (issue #30 is the known test gap; confirm current tracking issue/PR before coding).
+3. Static URL contract and shared event portal; unblock PR #5 only after its P1 route design is resolved.
+4. Invitation deployed E2E and membership mutation contracts.
+5. Session/recovery and role-route matrix.
+6. RLS/runtime DB-role/backup/staging investigation can run in parallel; production migration stays last and separately approved.
+7. Every sprint: exact-head CI, deployment verification where applicable, live E2E separately, and roadmap update.
 
-### 7. P1 — Session and account recovery
-**Tracking issue:** #26
-- Document one session architecture compatible with GitHub Pages and FastAPI Cloud, including access/refresh behavior, storage, expiry, rotation/revocation, CORS and CSRF.
-- Replace simulated OTP/forgot/reset flows with real tokenized flows or disable and label them unavailable.
-- Add single-use expiring password-reset tokens, generic public responses and rate limits to registration, login, invitation and recovery endpoints.
-- Decide privileged-account MFA and test expiry, reuse, logout/revocation and revoked membership behavior.
+## Standard Definition of Done
+- Acceptance criteria map to issues and tests.
+- Authorization is checked server-side for every object and mutation; client-supplied organization/event IDs never grant access.
+- Same-tenant allow and cross-tenant deny cases exist for every scoped feature.
+- No fabricated metrics, production mock substitution, fake success, or implicit default event IDs.
+- Static routes work by direct URL, refresh and copied/shared links under configured base path.
+- Backend tests, frontend static export, deployment, and browser E2E are reported independently.
+- Secrets and production data are not copied into issues, logs, artifacts or source.
+- Production DB remains unchanged until the separate security gate is explicitly approved.
 
-### 8. P1 — Replace Volunteer demo tasks with assignment-backed data
-**Tracking issue:** #27
-- Inventory existing volunteer/task backend APIs and tables first to avoid duplicate contracts.
-- Reuse or add narrow APIs for the authenticated volunteer's tasks/shifts in the active event.
-- Replace mock records and in-memory task state with API responses and loading/empty/error/retry states.
-- Enforce assignment scope for reads/mutations; test cross-volunteer and cross-event denial.
-
-### 9. P1 — Shared event portal and complete journey
-**Tracking issue:** #28
-- Depends on the canonical URL decision and fail-closed event login fixes.
-- Public lookup returns only approved event metadata and enabled role options; all assigned roles use the same event entry point.
-- Backend-derived identity/role/event controls post-login routing; selected client role is never authoritative.
-- Verify create organization → owner workspace → create event → invite/enroll role → accept invitation → event login → role dashboard → allowed action → forbidden action denied.
-- Test direct link, refresh, mobile, invalid/disabled event, unassigned user, wrong role, expired invitation and cross-event access.
-**Exit:** complete deployed positive and negative end-to-end tests pass on the exact released commit.
-
-### 10. P2 — Make roadmap evidence auditable
-**Tracking issue:** #29
-- Distinguish code implemented, CI passed, deployed and live E2E verified for every phase.
-- Record exact commit SHA, workflow/test links, browser results and unresolved blockers.
-- Update data/roadmap.csv only when acceptance criteria have evidence; editing the CSV is not proof that a feature works.
-
-## Release principles
-1. No production DB changes without reviewed migration, baseline, verified restore, staging proof and explicit approval.
-2. Do not weaken CI or authorization to make a PR green.
-3. Do not use mock fallback for production operations that must be persisted or authorized.
-4. Do not mark work complete because the UI looks correct or a static build passed.
-5. Keep planning tasks separate from application/schema changes.
-6. Prefer focused, sequenced PRs based on current main with explicit acceptance criteria.
-
-## Immediate order
-1. Validate and finish PR #19 Judge workflow.
-2. Fix event-login API configuration and fail-closed behavior (#21).
-3. Decide static-export-compatible event URL and resolve PR #5 feedback (#22).
-4. Consolidate PRs #16–18 for truthful, consistent dashboards (#23).
-5. Progress DB/security readiness for #24 in a separately gated staging track; do not apply production RLS changes prematurely.
-6. Finish invitation/membership lifecycle, sessions/recovery, Volunteer API data, shared portal E2E, then roadmap closeout.
-
-Original estimates are directional; sequence depends on dependencies and evidence, not estimates alone.
-
-## Fresh verification update — 2026-10-12 (follow-up)
-
-### Judge PR #19
-- Current head verified: `23aa429270ee874676a5eccc6e6ab399a83ee13a`.
-- Backend workflow passed: https://github.com/RAHUL-TKRCET/EVENTOPS-2026/actions/runs/38210663414.
-- GitHub Pages static-export workflow passed: https://github.com/RAHUL-TKRCET/EVENTOPS-2026/actions/runs/38210663494.
-- Still open as a draft; browser/direct-route checks were not performed.
-- Additional issue #30 records the remaining integration-test gap: new unit tests stub `_assigned_judge`, so they do not exercise actual persisted judge resolution; real TestClient allow/deny tests and browser verification remain required before merge.
-
-### Live Supabase review
-- Project `kwttdfgxstazmtzpcjnu` (EVENTOPS-2026) is reported `ACTIVE_HEALTHY`, Postgres 17.11.
-- Current migration ledger reports `20261011213317_lock_down_public_data_api_grants` and `20261011213523_create_secure_event_invitations`.
-- Latest Security Advisor snapshot at 2026-10-12 06:40 UTC reports 25 public tables with RLS enabled but no policies. Current advisor list includes organizations, users, organization_memberships, events, event_members, invitations, judges, teams, evaluations, attendance_records, resources, resource_distributions, and other operational tables. Details: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy.
-- Latest Performance Advisor reports 21 foreign-key constraints without a covering index and 15 unused indexes. Treat these as review candidates; do not create/drop indexes solely from an advisor snapshot without querying actual access patterns.
-- This is an observed advisor state, not proof of publicly exploitable row access. Prior tracker evidence says direct `anon`/`authenticated` table grants were revoked; verify grants, actual `DATABASE_URL` role/bypass-RLS behavior, and backend connection path before deciding final policy design.
-- No Supabase schema, grants, policies, migrations, or production data were changed during this follow-up.
-
-### Release decision
-- PR #19 is **not merged**; passing CI does not replace browser verification or the real-helper integration tests in issue #30.
-- PR #8 remains draft/non-mergeable and security-sensitive; no production RLS migration is approved by this update.
-
-
-## PR #16 resolution plan — updated 2026-10-12
-
-**Disposition:** PR #16 is closed and unmerged because its navigation changes were superseded by PR #31. Do not reopen or re-implement #16 in isolation.
-- Original PR: https://github.com/RAHUL-TKRCET/EVENTOPS-2026/pull/16
-- Merged replacement: PR #31, merge commit `c19a67fc08fe59a2798fc75dee068a3354d505e8` — https://github.com/RAHUL-TKRCET/EVENTOPS-2026/pull/31
-- Demo-data honesty replacement: PR #32, merge commit `45c51f861cad65f5ff243050f0bd842572006cb7` — https://github.com/RAHUL-TKRCET/EVENTOPS-2026/pull/32
-- Combined tracker: issue #23 — https://github.com/RAHUL-TKRCET/EVENTOPS-2026/issues/23
-
-### Scope already delivered
-1. Organization Admin sidebar is narrowed to five organization-level destinations: Organization Home, People & Roles, Events, Judges, and Organization Settings.
-2. Hard-coded navigation badges such as LIVE, counts, OR-Tools and Copilot were removed; unknown roles get a minimal fail-closed menu.
-3. Global search and mock announcement controls are suppressed on the Organization Admin landing page; profile/logout remain.
-4. Fixture-backed dashboard state is labeled as demo rather than claiming verified live/optimal solver state.
-5. The replacements were merged into main. Original #16/#17/#18 are superseded, not merge candidates.
-
-### Remaining execution plan
-**P0 — Validate UX and navigation on deployed Pages**
-- Run a fresh static export/build against current main and retain the exact commit SHA + workflow URL.
-- Browser-smoke the five Organization Admin destinations: sidebar links, active states, topbar visibility, profile/logout, direct URL and back/forward navigation.
-- Repeat at desktop and mobile widths; verify the Organization Admin dashboard layout and secondary organization-management pages separately.
-- Run role-by-role checks for Super Admin, Organization Admin, Event Admin, Coordinator, Judge, Volunteer and Participant. Verify hidden controls are not treated as security controls; protected APIs must still deny unauthorized requests.
-
-**P0 — Verify dashboard honesty**
-- Confirm fixture-backed metrics and operational activity remain visibly identified as sample/demo data and that no unsupported live, optimal or solver-success claims are shown.
-- Where a real API exists, verify loading, empty, error and retry behavior and ensure values are scoped to the selected organization/event.
-- Record remaining mock-backed pages separately instead of treating the dashboard banner as proof all role workspaces are API-backed.
-
-**P0 — Close tracker only with evidence**
-- Update issue #23 and this plan with exact build SHA, Pages run, test results, and desktop/mobile browser evidence.
-- Keep status open until browser/role tests pass. Do not represent CI/static export alone as a successful live UX test.
-- No database/schema/RLS change is required for this UI plan. Continue to keep the separate PR #8 security/staging gates intact.
-
-### Acceptance criteria
-- Five expected Organization Admin destinations render and navigate correctly on the deployed static site.
-- Organization and event operational links make scope/context clear; event-specific operations are reached only inside the selected event.
-- No misleading fabricated badges or solver/live claims remain.
-- Other roles retain their expected navigation and can still use profile/logout.
-- Browser/route visibility tests pass on desktop and mobile; backend authorization tests continue to enforce access independently.
+## Immediate next task
+Start with live acceptance and endpoint audit in [issue #33](https://github.com/RAHUL-TKRCET/EVENTOPS-2026/issues/33). Once evidenced, move to Judge assignment integration, using [issue #30](https://github.com/RAHUL-TKRCET/EVENTOPS-2026/issues/30) as the known integration-test gap and confirm the current tracking issue/PR before coding.
