@@ -14,21 +14,24 @@ import { eventsApi } from "@/lib/api/events";
 import { apiRequest } from "@/lib/api/config";
 import { EventItem } from "@/types";
 
-type EventSummary = {
-  enrolledMembers?: Array<{
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    title?: string;
-    zoneOrDept?: string;
-    zone_or_dept?: string;
-    status: string;
-  }>;
-  totalTeams?: number;
-  attendanceScans?: number;
-  incidentCount?: number;
-  memberCountByRole?: Record<string, number>;
+type EventMetrics = {
+  totalTeams: number;
+  checkedInTeams: number;
+  checkInRate: string;
+  activeVenues: number;
+  submittedEvaluations: number;
+  openIncidents: number;
+  systemHealth: string;
+};
+
+type EventMember = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  title?: string;
+  zoneOrDept?: string;
+  status: string;
 };
 
 type ApiFailure = {
@@ -60,10 +63,12 @@ export default function EventDetailPage() {
   const eventId = Array.isArray(rawEventId) ? rawEventId[0] : String(rawEventId ?? "");
 
   const [event, setEvent] = useState<EventItem | null>(null);
-  const [summaryData, setSummaryData] = useState<EventSummary | null>(null);
+  const [metrics, setMetrics] = useState<EventMetrics | null>(null);
+  const [members, setMembers] = useState<EventMember[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<ApiFailure | null>(null);
-  const [summaryUnavailable, setSummaryUnavailable] = useState(false);
+  const [metricsUnavailable, setMetricsUnavailable] = useState(false);
+  const [membersUnavailable, setMembersUnavailable] = useState(false);
   const [copiedPortal, setCopiedPortal] = useState(false);
   const [copiedLogin, setCopiedLogin] = useState(false);
 
@@ -71,8 +76,10 @@ export default function EventDetailPage() {
     setIsLoading(true);
     setError(null);
     setEvent(null);
-    setSummaryData(null);
-    setSummaryUnavailable(false);
+    setMetrics(null);
+    setMembers(null);
+    setMetricsUnavailable(false);
+    setMembersUnavailable(false);
 
     if (!eventId) {
       setError({ kind: "not-found", message: "No event identifier was provided." });
@@ -83,19 +90,36 @@ export default function EventDetailPage() {
     try {
       const loadedEvent = await eventsApi.getById(eventId);
       setEvent(loadedEvent);
-      try {
-        const summary = await apiRequest<EventSummary>(`/events/${encodeURIComponent(eventId)}/summary`);
-        setSummaryData(summary);
-      } catch (summaryError) {
-        // The repository's FastAPI events router currently exposes no summary route.
-        // Do not fabricate a count or roster when that endpoint is unavailable.
-        const failure = classifyFailure(summaryError);
+
+      const results = await Promise.allSettled([
+        apiRequest<EventMetrics>(`/analytics/overview?eventId=${encodeURIComponent(eventId)}`),
+        eventsApi.getMembers(eventId),
+      ]);
+      const metricsResult = results[0];
+      const membersResult = results[1];
+
+      if (metricsResult.status === "fulfilled") {
+        setMetrics(metricsResult.value);
+      } else {
+        const failure = classifyFailure(metricsResult.reason);
         if (failure.kind === "unauthenticated" || failure.kind === "forbidden") {
           setError(failure);
           setEvent(null);
           return;
         }
-        setSummaryUnavailable(true);
+        setMetricsUnavailable(true);
+      }
+
+      if (membersResult.status === "fulfilled") {
+        setMembers(membersResult.value);
+      } else {
+        const failure = classifyFailure(membersResult.reason);
+        if (failure.kind === "unauthenticated" || failure.kind === "forbidden") {
+          setError(failure);
+          setEvent(null);
+          return;
+        }
+        setMembersUnavailable(true);
       }
     } catch (loadError) {
       setError(classifyFailure(loadError));
@@ -106,13 +130,15 @@ export default function EventDetailPage() {
 
   useEffect(() => {
     void loadEvent();
-    // loadEvent intentionally refreshes when the selected route id changes.
+    // Refresh when the selected route id changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const portalUrl = event ? `${origin}/events/${event.id}/portal` : "";
-  const loginUrl = event ? `${origin}/events/${event.id}/login` : "";
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const base = `${origin}${basePath}`;
+  const portalUrl = event ? `${base}/events/${encodeURIComponent(event.id)}/portal` : "";
+  const loginUrl = event ? `${base}/events/${encodeURIComponent(event.id)}/login` : "";
 
   const copyToClipboard = async (text: string, type: "portal" | "login") => {
     if (!text || typeof navigator === "undefined" || !navigator.clipboard) {
@@ -132,8 +158,12 @@ export default function EventDetailPage() {
     }
   };
 
-  const enrolledMembers = summaryData?.enrolledMembers ?? [];
-  const roleBreakdown = summaryData?.memberCountByRole ?? {};
+  const roleBreakdown = members?.reduce<Record<string, number>>((counts, member) => {
+    const role = String(member.role || "UNKNOWN").toUpperCase();
+    counts[role] = (counts[role] || 0) + 1;
+    return counts;
+  }, {}) ?? {};
+
   const submodules = event ? [
     { title: "Enrolled Roles & Delegation", desc: "Add Volunteers, Judges, Coordinators & Staff", href: `/people?eventId=${encodeURIComponent(event.id)}`, icon: <UserPlus className="w-5 h-5 text-sky-400" /> },
     { title: "Rounds & Timeline", desc: "Progression quotas & schedule", href: `/events/${event.id}/rounds`, icon: <Layers className="w-5 h-5 text-indigo-400" /> },
@@ -231,29 +261,19 @@ export default function EventDetailPage() {
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div>
             <h3 className="text-sm font-bold text-white font-mono flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-sky-400" />Event operational overview</h3>
-            <p className="text-xs text-slate-400">Only verified backend data is shown for {event.name}.</p>
+            <p className="text-xs text-slate-400">Only backend responses are shown for {event.name}.</p>
           </div>
           <Button size="sm" variant="outline" onClick={() => router.push(`/people?eventId=${encodeURIComponent(event.id)}`)} rightIcon={<UserPlus className="w-3.5 h-3.5" />}>Manage Staff</Button>
         </div>
-        {summaryUnavailable || !summaryData ? (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
-            Operational counts and roster are unavailable because this backend does not currently provide a verified summary for the selected event. The event itself loaded successfully; no sample metrics are being substituted.
-          </div>
+        {metricsUnavailable || !metrics ? (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">Operational metrics are unavailable. The event itself loaded successfully; retry to load current counts.</div>
         ) : (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <KPICard title="Enrolled staff" value={summaryData.enrolledMembers?.length ?? "—"} subtitle="From the event roster API" icon={<Users className="h-4 w-4 text-sky-400" />} />
-              <KPICard title="Registered teams" value={summaryData.totalTeams ?? "—"} subtitle="From the event summary API" icon={<Users className="h-4 w-4 text-indigo-400" />} />
-              <KPICard title="Attendance scans" value={summaryData.attendanceScans ?? "—"} subtitle="Verified scans returned by API" icon={<Calendar className="h-4 w-4 text-emerald-400" />} />
-              <KPICard title="Open incidents" value={summaryData.incidentCount ?? "—"} subtitle="From the event summary API" icon={<ShieldCheck className="h-4 w-4 text-amber-400" />} />
-            </div>
-            <div className="pt-2 flex flex-wrap items-center gap-2 text-xs font-mono">
-              <span className="text-slate-500 text-[11px] uppercase">Staff by role:</span>
-              {["VOLUNTEER", "JUDGE", "COORDINATOR", "TECHNICAL_STAFF", "RESOURCE_MANAGER"].map((role) => (
-                <span key={role} className="px-2.5 py-0.5 rounded-full border border-slate-700 bg-slate-800/60 text-slate-300">{role.replaceAll("_", " ")}: {roleBreakdown[role] ?? 0}</span>
-              ))}
-            </div>
-          </>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <KPICard title="Registered teams" value={metrics.totalTeams} subtitle="From authorized analytics API" icon={<Users className="h-4 w-4 text-indigo-400" />} />
+            <KPICard title="Checked-in teams" value={metrics.checkedInTeams} subtitle={metrics.checkInRate + " check-in rate"} icon={<Calendar className="h-4 w-4 text-emerald-400" />} />
+            <KPICard title="Active venues" value={metrics.activeVenues} subtitle="From authorized analytics API" icon={<Building className="h-4 w-4 text-sky-400" />} />
+            <KPICard title="Open incidents" value={metrics.openIncidents} subtitle="From authorized analytics API" icon={<ShieldCheck className="h-4 w-4 text-amber-400" />} />
+          </div>
         )}
       </div>
 
@@ -262,19 +282,27 @@ export default function EventDetailPage() {
           <div><h3 className="text-sm font-bold text-white font-mono flex items-center gap-2"><Users className="w-4 h-4 text-indigo-400" />Enrolled roles & staff roster</h3><p className="text-xs text-slate-400">Personnel delegated and authorized for this event.</p></div>
           <Link href={`/people?eventId=${encodeURIComponent(event.id)}`} className="text-xs font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1">Manage staff <ArrowRight className="w-3.5 h-3.5" /></Link>
         </div>
-        {summaryUnavailable || !summaryData ? (
-          <p className="text-sm text-slate-400">Roster is unavailable until a verified event-summary endpoint is implemented.</p>
-        ) : enrolledMembers.length === 0 ? (
+        {membersUnavailable || !members ? (
+          <p className="text-sm text-slate-400">The event roster is unavailable. Verify the memberships API and retry.</p>
+        ) : members.length === 0 ? (
           <div className="p-8 text-center rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-3"><UserPlus className="w-8 h-8 text-slate-500 mx-auto" /><p className="text-xs text-slate-400">No staff members enrolled yet for this event.</p><Button size="sm" variant="outline" onClick={() => router.push(`/people?eventId=${encodeURIComponent(event.id)}`)}>Add Staff / Roles</Button></div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase text-[10px]"><tr><th className="py-2.5 px-3">Name</th><th className="py-2.5 px-3">Role</th><th className="py-2.5 px-3">Email</th><th className="py-2.5 px-3">Title / Zone</th><th className="py-2.5 px-3">Status</th></tr></thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-200">
-                {enrolledMembers.slice(0, 5).map((member) => <tr key={member.id} className="hover:bg-slate-800/30 transition"><td className="py-2.5 px-3 font-medium text-white">{member.name}</td><td className="py-2.5 px-3"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">{member.role}</span></td><td className="py-2.5 px-3 text-slate-400">{member.email}</td><td className="py-2.5 px-3 text-slate-400">{member.title || member.zoneOrDept || member.zone_or_dept || "—"}</td><td className="py-2.5 px-3"><span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">{member.status}</span></td></tr>)}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+              <span className="text-slate-500 text-[11px] uppercase">Staff by role:</span>
+              {["VOLUNTEER", "JUDGE", "COORDINATOR", "TECHNICAL_STAFF", "RESOURCE_MANAGER"].map((role) => (
+                <span key={role} className="px-2.5 py-0.5 rounded-full border border-slate-700 bg-slate-800/60 text-slate-300">{role.replaceAll("_", " ")}: {roleBreakdown[role] ?? 0}</span>
+              ))}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono">
+                <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase text-[10px]"><tr><th className="py-2.5 px-3">Name</th><th className="py-2.5 px-3">Role</th><th className="py-2.5 px-3">Email</th><th className="py-2.5 px-3">Title / Zone</th><th className="py-2.5 px-3">Status</th></tr></thead>
+                <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                  {members.slice(0, 5).map((member) => <tr key={member.id} className="hover:bg-slate-800/30 transition"><td className="py-2.5 px-3 font-medium text-white">{member.name}</td><td className="py-2.5 px-3"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">{member.role}</span></td><td className="py-2.5 px-3 text-slate-400">{member.email}</td><td className="py-2.5 px-3 text-slate-400">{member.title || member.zoneOrDept || "—"}</td><td className="py-2.5 px-3"><span className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">{member.status}</span></td></tr>)}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
