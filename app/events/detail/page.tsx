@@ -97,9 +97,9 @@ function EventSettingsForm({ event, onSaved }: { event: EventItem; onSaved: (eve
     <form onSubmit={save} className="space-y-4">
       {error && <p role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</p>}
       {notice && <p role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</p>}
-      <Input label="Event name" value={name} onChange={(value) => setName(value)} required />
-      <Textarea label="Description" value={description} onChange={(value) => setDescription(value)} />
-      <Input label="Location" value={location} onChange={(value) => setLocation(value)} />
+      <Input label="Event name" value={name} onChange={(event) => setName(event.target.value)} required />
+      <Textarea label="Description" value={description} onChange={(event) => setDescription(event.target.value)} />
+      <Input label="Location" value={location} onChange={(event) => setLocation(event.target.value)} />
       <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200">Only fields supported by the backend update endpoint can be saved. Branding, access flags, and other settings remain unavailable until their write APIs exist.</div>
       <Button type="submit" variant="primary" disabled={busy}>{busy ? "Saving…" : "Save event settings"}</Button>
     </form>
