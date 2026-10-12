@@ -260,10 +260,7 @@ export const Sidebar: React.FC = () => {
               {!isSidebarCollapsed && (
                 <>
                   <span className="truncate flex-1">{item.label}</span>
-                    >
-                      {item.badge}
-                    </span>
-                  )}
+
                 </>
               )}
             </Link>
