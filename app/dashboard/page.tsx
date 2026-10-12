@@ -393,7 +393,7 @@ export default function DashboardPage() {
           <div className="p-5 rounded-2xl border border-indigo-500/30 bg-slate-900/80 space-y-3">
             <div className="flex items-center justify-between">
               <span className="font-mono text-xs text-indigo-400 font-bold uppercase">CP-SAT Allocator</span>
-              <StatusBadge status="OPTIMAL" />
+              <span className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-mono text-amber-300">DEMO ONLY</span>
             </div>
             <h4 className="text-sm font-semibold text-slate-100">Jury & Venue Allocation</h4>
             <p className="text-xs text-slate-400">
