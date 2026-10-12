@@ -132,6 +132,8 @@ export const authApi = {
         localStorage.setItem("eventops_token", authToken);
         if (data.user.organizationId) {
           localStorage.setItem("eventops_org_id", data.user.organizationId);
+        } else {
+          localStorage.removeItem("eventops_org_id");
         }
       } catch (_) {}
     }
@@ -162,6 +164,11 @@ export const authApi = {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("eventops_token", authToken);
+        if (data.user.organizationId) {
+          localStorage.setItem("eventops_org_id", data.user.organizationId);
+        } else {
+          localStorage.removeItem("eventops_org_id");
+        }
       } catch (_) {}
     }
 
