@@ -92,3 +92,38 @@ def test_public_event_metadata_route_is_registered_and_public_safe():
     assert "organizationId" not in PublicEventResponse.model_fields
     assert "ownerId" not in PublicEventResponse.model_fields
 
+
+
+def test_org_admin_scope_matches_persisted_event_records():
+    from app.models.entities import Event
+    actor = _user("ORGANIZATION_ADMIN", "org-e1abe51acc01")
+    assert require_event_scope(_event("evt-cdf51aa8", "org-e1abe51acc01", owner_id="usr-33f5cdc20898"), actor) is None
+    assert require_event_scope(_event("evt-34896300", "org-e1abe51acc01", owner_id="usr-33f5cdc20898"), actor) is None
+
+
+def test_org_admin_without_verified_org_cannot_open_events():
+    actor = _user("ORGANIZATION_ADMIN", None)
+    with pytest.raises(HTTPException) as error:
+        require_event_scope(_event("evt-cdf51aa8", "org-e1abe51acc01"), actor)
+    assert error.value.status_code == 403
+
+
+def test_org_admin_event_list_scopes_to_verified_organization():
+    from app.api.v1.events import list_events
+    from unittest.mock import MagicMock
+    actor = _user("ORGANIZATION_ADMIN", "org-e1abe51acc01")
+    db = MagicMock()
+    query = db.query.return_value
+    query.filter.return_value.all.return_value = []
+    assert list_events(db=db, current_user=actor) == []
+    query.filter.assert_called_once()
+
+
+def test_explicit_stale_org_header_is_not_authoritative_for_org_admin():
+    from app.api.deps import get_current_tenant_user
+    from unittest.mock import MagicMock
+    actor = _user("ORGANIZATION_ADMIN", "org-e1abe51acc01")
+    db = MagicMock()
+    with pytest.raises(HTTPException) as error:
+        get_current_tenant_user(x_organization_id="org-other", current_user=actor, db=db)
+    assert error.value.status_code == 403
