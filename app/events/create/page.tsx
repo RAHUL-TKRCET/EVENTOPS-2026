@@ -114,7 +114,7 @@ export default function CreateEventPage() {
           </div>
 
           <p className="text-xs text-slate-300 max-w-xl mx-auto">
-            Your event is now live! Below are the public links to share with participants and delegates, and the role login terminal for your event staff.
+            Your event was created successfully with DRAFT status. Review the event configuration before publishing or sharing registration instructions.
           </p>
 
           <div className="space-y-3 pt-4 text-left">
