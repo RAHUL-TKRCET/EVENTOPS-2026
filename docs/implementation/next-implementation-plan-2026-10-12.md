@@ -145,3 +145,43 @@ Original estimates are directional; sequence depends on dependencies and evidenc
 ### Release decision
 - PR #19 is **not merged**; passing CI does not replace browser verification or the real-helper integration tests in issue #30.
 - PR #8 remains draft/non-mergeable and security-sensitive; no production RLS migration is approved by this update.
+
+
+## PR #16 resolution plan — updated 2026-10-12
+
+**Disposition:** PR #16 is closed and unmerged because its navigation changes were superseded by PR #31. Do not reopen or re-implement #16 in isolation.
+- Original PR: https://github.com/RAHUL-TKRCET/EVENTOPS-2026/pull/16
+- Merged replacement: PR #31, merge commit `c19a67fc08fe59a2798fc75dee068a3354d505e8` — https://github.com/RAHUL-TKRCET/EVENTOPS-2026/pull/31
+- Demo-data honesty replacement: PR #32, merge commit `45c51f861cad65f5ff243050f0bd842572006cb7` — https://github.com/RAHUL-TKRCET/EVENTOPS-2026/pull/32
+- Combined tracker: issue #23 — https://github.com/RAHUL-TKRCET/EVENTOPS-2026/issues/23
+
+### Scope already delivered
+1. Organization Admin sidebar is narrowed to five organization-level destinations: Organization Home, People & Roles, Events, Judges, and Organization Settings.
+2. Hard-coded navigation badges such as LIVE, counts, OR-Tools and Copilot were removed; unknown roles get a minimal fail-closed menu.
+3. Global search and mock announcement controls are suppressed on the Organization Admin landing page; profile/logout remain.
+4. Fixture-backed dashboard state is labeled as demo rather than claiming verified live/optimal solver state.
+5. The replacements were merged into main. Original #16/#17/#18 are superseded, not merge candidates.
+
+### Remaining execution plan
+**P0 — Validate UX and navigation on deployed Pages**
+- Run a fresh static export/build against current main and retain the exact commit SHA + workflow URL.
+- Browser-smoke the five Organization Admin destinations: sidebar links, active states, topbar visibility, profile/logout, direct URL and back/forward navigation.
+- Repeat at desktop and mobile widths; verify the Organization Admin dashboard layout and secondary organization-management pages separately.
+- Run role-by-role checks for Super Admin, Organization Admin, Event Admin, Coordinator, Judge, Volunteer and Participant. Verify hidden controls are not treated as security controls; protected APIs must still deny unauthorized requests.
+
+**P0 — Verify dashboard honesty**
+- Confirm fixture-backed metrics and operational activity remain visibly identified as sample/demo data and that no unsupported live, optimal or solver-success claims are shown.
+- Where a real API exists, verify loading, empty, error and retry behavior and ensure values are scoped to the selected organization/event.
+- Record remaining mock-backed pages separately instead of treating the dashboard banner as proof all role workspaces are API-backed.
+
+**P0 — Close tracker only with evidence**
+- Update issue #23 and this plan with exact build SHA, Pages run, test results, and desktop/mobile browser evidence.
+- Keep status open until browser/role tests pass. Do not represent CI/static export alone as a successful live UX test.
+- No database/schema/RLS change is required for this UI plan. Continue to keep the separate PR #8 security/staging gates intact.
+
+### Acceptance criteria
+- Five expected Organization Admin destinations render and navigate correctly on the deployed static site.
+- Organization and event operational links make scope/context clear; event-specific operations are reached only inside the selected event.
+- No misleading fabricated badges or solver/live claims remain.
+- Other roles retain their expected navigation and can still use profile/logout.
+- Browser/route visibility tests pass on desktop and mobile; backend authorization tests continue to enforce access independently.
