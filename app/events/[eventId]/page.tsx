@@ -202,7 +202,6 @@ export default function EventDetailPage() {
 
   return (
     <div className="space-y-6">
-      {error && <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">{error.message}</div>}
       <div className="flex items-center justify-between gap-3">
         <Button variant="outline" size="sm" onClick={() => router.push("/events")}>← Back to Events</Button>
         <Button variant="outline" size="sm" onClick={() => void loadEvent()}>Refresh event</Button>
