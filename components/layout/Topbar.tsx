@@ -54,7 +54,7 @@ export const Topbar: React.FC = () => {
     logout,
   } = useAppStore();
 
-  const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && isOrganizationManagementRoute(pathname);
+  const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && pathname === "/dashboard";
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
