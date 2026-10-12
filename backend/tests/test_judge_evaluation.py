@@ -18,6 +18,12 @@ class FakeQuery:
     def first(self):
         return self.value
 
+    def order_by(self, *conditions):
+        return self
+
+    def all(self):
+        return self.value
+
 
 class FakeDB:
     def __init__(self, values):
@@ -108,3 +114,37 @@ def test_judge_scorecard_lookup_denies_unassigned_team(monkeypatch):
 
     assert error.value.status_code == 403
     assert db.queried_models == [Team]
+
+
+def test_judge_history_is_filtered_to_active_event_and_current_judge(monkeypatch):
+    judge = SimpleNamespace(id="judge-db-id", assigned_teams=["T001"])
+    record = _record()
+    team = _team()
+    monkeypatch.setattr(evaluation, "_assigned_judge", lambda db, user, event_id: judge)
+    db = FakeDB([[record], [team]])
+
+    result = evaluation.get_my_evaluations(
+        eventId="evt-a",
+        db=db,
+        current_user=_judge_user(),
+    )
+
+    assert len(result) == 1
+    assert result[0].judgeId == "judge-db-id"
+    assert result[0].teamId == "T001"
+    assert result[0].teamName == "Assigned Team"
+    assert db.queried_models == [Evaluation, Team]
+
+
+def test_judge_history_rejects_a_different_event(monkeypatch):
+    db = FakeDB([])
+
+    with pytest.raises(HTTPException) as error:
+        evaluation.get_my_evaluations(
+            eventId="evt-foreign",
+            db=db,
+            current_user=_judge_user(),
+        )
+
+    assert error.value.status_code == 403
+    assert db.queried_models == []
