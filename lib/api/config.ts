@@ -1,8 +1,8 @@
 /**
  * EVENTOPS 2026 Centralized API Configuration & Client Helper
- * Supports FastAPI backend URL resolution and consistent authorization headers.
+ * All browser API calls use the configured FastAPI URL and the verified auth
+ * context from the active EVENTOPS session.
  */
-
 const RAW_API_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
@@ -27,44 +27,25 @@ export function getActiveOrganizationId(): string | null {
 export function getAuthHeaders(extraHeaders: Record<string, string> = {}): Record<string, string> {
   const token = getAuthToken();
   const orgId = getActiveOrganizationId();
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...extraHeaders,
-  };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-  if (orgId) {
-    headers["x-organization-id"] = orgId;
-  }
-
+  const headers: Record<string, string> = { "Content-Type": "application/json", ...extraHeaders };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (orgId) headers["x-organization-id"] = orgId;
   return headers;
 }
 
-export async function apiRequest<T = any>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
+export async function apiRequest<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
   const url = `${API_BASE_URL}${cleanEndpoint}`;
-
   const defaultHeaders = getAuthHeaders();
   const mergedHeaders = {
     ...defaultHeaders,
-    ...(options.headers as Record<string, string> || {}),
+    ...((options.headers as Record<string, string> | undefined) || {}),
   };
 
   let response: Response;
   try {
-    response = await fetch(url, {
-      ...options,
-      headers: mergedHeaders,
-    });
+    response = await fetch(url, { ...options, headers: mergedHeaders });
   } catch (error) {
-    // Browsers intentionally hide low-level details for CORS, DNS, TLS, and
-    // connectivity failures. Give users the actionable endpoint/origin context.
     const reason =
       error instanceof Error && error.name === "AbortError"
         ? "The request timed out or was cancelled."
@@ -75,18 +56,16 @@ export async function apiRequest<T = any>(
   if (!response.ok) {
     let errorDetail = `HTTP ${response.status} ${response.statusText}`;
     try {
-      const errJson = await response.json();
-      errorDetail = errJson.detail || errJson.message || errJson.error || errorDetail;
+      const body = await response.json();
+      errorDetail = body.detail || body.message || body.error || errorDetail;
     } catch {
-      // Body not JSON
+      // Keep HTTP status when the response is not JSON.
     }
-    throw new Error(errorDetail);
+    const error = new Error(errorDetail) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
   }
 
-  // Handle 204 No Content
-  if (response.status === 204) {
-    return {} as T;
-  }
-
+  if (response.status === 204) return {} as T;
   return response.json();
 }

@@ -8,7 +8,13 @@ export const eventsApi = {
   },
 
   async getById(id: string): Promise<EventItem> {
-    return apiRequest<EventItem>(`/events/${id}`);
+    return apiRequest<EventItem>(`/events/${encodeURIComponent(id)}`);
+  },
+
+  async getPublicById(id: string): Promise<EventItem> {
+    return apiRequest<EventItem>(`/events/${encodeURIComponent(id)}/public`, {
+      headers: { Authorization: "" },
+    });
   },
 
   async create(data: Partial<EventItem>): Promise<EventItem> {

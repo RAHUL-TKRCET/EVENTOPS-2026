@@ -38,6 +38,23 @@ class EventRuleSchema(BaseModel):
     isMandatory: bool = True
 
 
+
+class PublicEventResponse(BaseModel):
+    """Approved event metadata safe to display before an event-role session exists."""
+    id: str
+    name: str
+    type: str
+    description: Optional[str] = None
+    location: Optional[str] = None
+    bannerUrl: Optional[str] = None
+    startDate: str
+    endDate: str
+    registrationDeadline: str
+    status: str
+    expectedParticipants: int
+    currentRound: int
+    totalRounds: int
+
 class EventCreate(BaseModel):
     name: str
     type: str = "Hackathon"

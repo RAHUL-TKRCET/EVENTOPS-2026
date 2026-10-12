@@ -9,19 +9,24 @@ import { EventItem } from "@/types";
 import { Calendar, Plus, Users, Building, ArrowRight, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { eventsApi } from "@/lib/api/events";
+import { getActiveOrganizationId } from "@/lib/api/config";
 
 export default function EventsListPage() {
   const router = useRouter();
   const [events, setEvents] = useState<EventItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [hasOrganizationContext, setHasOrganizationContext] = useState(false);
 
   const loadEvents = async () => {
     setIsLoading(true);
     setError("");
     try {
+      const organizationId = getActiveOrganizationId();
+      setHasOrganizationContext(Boolean(organizationId));
       setEvents(await eventsApi.getAll());
     } catch (err) {
+      setEvents([]);
       setError(err instanceof Error ? err.message : "Unable to load events for this workspace.");
     } finally {
       setIsLoading(false);
@@ -63,7 +68,7 @@ export default function EventsListPage() {
     {
       key: "actions",
       header: "Actions",
-      render: (event) => <Button size="sm" variant="outline" onClick={() => router.push(`/events/${event.id}`)} rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>Open hub</Button>,
+      render: (event) => <Button size="sm" variant="outline" onClick={() => router.push(`/events/detail?eventId=${encodeURIComponent(event.id)}`)} rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>Open hub</Button>,
     },
   ];
 
@@ -82,12 +87,23 @@ export default function EventsListPage() {
         </div>
       </div>
 
-      {error && <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">{error}</div>}
+      {error && (
+        <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+          <p>{error}</p>
+          <Button className="mt-3" variant="outline" size="sm" onClick={() => void loadEvents()}>Retry</Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <KPICard title="Total events" value={events.length} icon={<Calendar className="h-4 w-4 text-indigo-400" />} />
-        <KPICard title="Active events" value={activeCount} accentColor="emerald" icon={<Users className="h-4 w-4 text-emerald-400" />} />
-        <KPICard title="Organization scope" value="Restricted" subtitle="Access checked by the backend" accentColor="sky" icon={<Building className="h-4 w-4 text-sky-400" />} />
+        <KPICard title="Total events" value={isLoading || error ? "—" : events.length} icon={<Calendar className="h-4 w-4 text-indigo-400" />} />
+        <KPICard title="Active events" value={isLoading || error ? "—" : activeCount} accentColor="emerald" icon={<Users className="h-4 w-4 text-emerald-400" />} />
+        <KPICard
+          title="Organization scope"
+          value={isLoading ? "Checking" : hasOrganizationContext ? "Organization" : "Account scope"}
+          subtitle={isLoading ? "Verifying workspace context" : hasOrganizationContext ? "Events authorized for this organization" : "Backend determines access; no client-side scope override"}
+          accentColor="sky"
+          icon={<Building className="h-4 w-4 text-sky-400" />}
+        />
       </div>
 
       {isLoading ? (
@@ -99,7 +115,7 @@ export default function EventsListPage() {
           <p className="mt-1 text-sm text-slate-400">Create your first event to begin organizing your program.</p>
           <Button className="mt-4" variant="primary" onClick={() => router.push("/events/create")}>Create first event</Button>
         </div>
-      ) : !isLoading ? (
+      ) : !isLoading && events.length > 0 ? (
         <DataTable
           data={events}
           columns={columns}
@@ -110,7 +126,7 @@ export default function EventsListPage() {
             event.type.toLowerCase().includes(query) ||
             (event.description || "").toLowerCase().includes(query)
           }
-          onRowClick={(event) => router.push(`/events/${event.id}`)}
+          onRowClick={(event) => router.push(`/events/detail?eventId=${encodeURIComponent(event.id)}`)}
         />
       ) : null}
     </div>
