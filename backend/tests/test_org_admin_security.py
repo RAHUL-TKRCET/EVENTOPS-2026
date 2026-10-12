@@ -54,3 +54,30 @@ def test_event_detail_requires_authentication():
 def test_judge_roster_requires_authentication():
     response = client.get('/api/v1/judges')
     assert response.status_code == 401
+
+
+def test_organization_admin_cannot_use_stale_event_context_for_another_event():
+    actor = _user("ORGANIZATION_ADMIN", "org-a", "evt-a")
+    with pytest.raises(HTTPException) as error:
+        require_event_scope(_event("evt-b", "org-a"), actor)
+    assert error.value.status_code == 403
+
+
+def test_event_admin_is_limited_to_owned_event():
+    actor = _user("EVENT_ADMIN", "org-a")
+    assert require_event_scope(_event("evt-a", "org-a", owner_id=actor.id), actor) is None
+    with pytest.raises(HTTPException) as error:
+        require_event_scope(_event("evt-b", "org-a", owner_id="someone-else"), actor)
+    assert error.value.status_code == 403
+
+
+def test_non_admin_event_role_cannot_administer_event():
+    actor = _user("JUDGE", "org-a")
+    with pytest.raises(HTTPException) as error:
+        require_event_scope(_event("evt-a", "org-a"), actor)
+    assert error.value.status_code == 403
+
+
+def test_platform_admin_without_event_context_can_cross_organization_boundary():
+    actor = _user("SUPER_ADMIN", organization_id=None)
+    assert require_event_scope(_event("evt-other-org", "org-b"), actor) is None
