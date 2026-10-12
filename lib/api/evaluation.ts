@@ -3,26 +3,48 @@ import { apiRequest } from "./config";
 
 export const evaluationApi = {
   async getByTeam(teamId: string): Promise<EvaluationItem[]> {
-    return apiRequest<EvaluationItem[]>(`/evaluation/team/${teamId}`);
+    return apiRequest<EvaluationItem[]>(`/evaluation/team/${encodeURIComponent(teamId)}`);
   },
 
-  async submitEvaluation(data: Partial<EvaluationItem>): Promise<EvaluationItem> {
+  async getMine(teamId: string, roundId: string): Promise<EvaluationItem | null> {
+    const query = new URLSearchParams({ roundId });
+    return apiRequest<EvaluationItem | null>(
+      `/evaluation/team/${encodeURIComponent(teamId)}/mine?${query.toString()}`
+    );
+  },
+
+  async submitEvaluation(data: {
+    eventId: string;
+    roundId: string;
+    teamId: string;
+    scores: Record<string, number>;
+    feedback?: string;
+    strengths?: string;
+    areasToImprove?: string;
+    status?: EvaluationItem["status"];
+  }): Promise<EvaluationItem> {
     return apiRequest<EvaluationItem>("/evaluation", {
       method: "POST",
       body: JSON.stringify({
-        eventId: data.eventId || "evt-01",
-        roundId: data.roundId || "rnd-1",
+        eventId: data.eventId,
+        roundId: data.roundId,
         teamId: data.teamId,
-        scores: data.scores || {},
-        feedback: data.feedback || "",
-        strengths: data.strengths || "",
-        areasToImprove: data.areasToImprove || "",
-        status: data.status || "SUBMITTED",
+        scores: data.scores,
+        feedback: data.feedback ?? "",
+        strengths: data.strengths ?? "",
+        areasToImprove: data.areasToImprove ?? "",
+        status: data.status ?? "SUBMITTED",
       }),
     });
   },
 
-  async getLeaderboard(eventId = "evt-01"): Promise<any[]> {
-    return apiRequest<any[]>(`/evaluation/leaderboard/${eventId}`);
+  async getMineForEvent(eventId: string): Promise<EvaluationItem[]> {
+    return apiRequest<EvaluationItem[]>(
+      `/evaluation/mine?eventId=${encodeURIComponent(eventId)}`
+    );
+  },
+
+  async getLeaderboard(eventId: string): Promise<any[]> {
+    return apiRequest<any[]>(`/evaluation/leaderboard/${encodeURIComponent(eventId)}`);
   },
 };

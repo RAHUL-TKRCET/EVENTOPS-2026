@@ -5,54 +5,37 @@ import { useRouter } from "next/navigation";
 import { KPICard } from "@/components/ui/KPICard";
 import { StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { mockTeams } from "@/lib/mock-data/teams";
-import { mockJudges } from "@/lib/mock-data/judges";
+import { useAssignedJudgeTeams } from "@/hooks/useAssignedJudgeTeams";
+import { useAppStore } from "@/store";
 import {
-  Scale,
-  CheckCircle2,
-  Clock,
   ArrowRight,
+  CalendarDays,
   ClipboardCheck,
-  QrCode,
-  ShieldCheck,
-  Sparkles,
   MapPin,
-  Lock,
+  QrCode,
+  Scale,
 } from "lucide-react";
 
 export default function JudgeDashboardPage() {
   const router = useRouter();
-  const currentJudge = mockJudges[0];
-
-  // Scoped to teams assigned to this judge
-  const assignedTeams = mockTeams.filter(
-    (t) => currentJudge?.assignedTeams?.includes(t.id) || t.id === "T042" || t.id === "T001"
-  );
-
-  const completedCount = Math.min(2, assignedTeams.length);
-  const pendingCount = Math.max(0, assignedTeams.length - completedCount);
-  const progressPct = assignedTeams.length > 0 ? Math.round((completedCount / assignedTeams.length) * 100) : 0;
+  const { currentUser, currentEvent } = useAppStore();
+  const { teams, isLoading, error, eventName } = useAssignedJudgeTeams();
 
   return (
     <div className="space-y-6">
-      {/* Judge Header */}
-      <div className="p-6 rounded-3xl border border-amber-500/20 bg-gradient-to-r from-amber-950/30 via-slate-900 to-slate-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <header className="rounded-3xl border border-amber-500/20 bg-gradient-to-r from-amber-950/30 via-slate-900 to-slate-950 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs font-bold text-amber-400 uppercase tracking-wider bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-              Evaluator Terminal • {currentJudge?.id || "N/A"}
-            </span>
-            <StatusBadge status="ACTIVE" />
-          </div>
+          <span className="font-mono text-xs font-bold text-amber-400 uppercase tracking-wider">
+            Judge Workspace
+          </span>
           <h1 className="text-2xl font-bold font-mono text-white mt-1">
-            Welcome, {currentJudge?.name || "Evaluator"}
+            Welcome{currentUser?.name ? `, ${currentUser.name}` : ""}
           </h1>
-          <p className="text-xs text-slate-400">
-            {currentJudge?.organization || "Jury Panel"} • Specialization: {currentJudge?.expertise?.join(", ") || "General"}
+          <p className="text-xs text-slate-400 mt-1">
+            {eventName || "No event selected"} • Your team list is resolved by the authenticated event session.
           </p>
         </div>
-
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             variant="outline"
             size="md"
@@ -65,136 +48,120 @@ export default function JudgeDashboardPage() {
             variant="primary"
             size="md"
             leftIcon={<ClipboardCheck className="w-4 h-4" />}
-            onClick={() => router.push(`/judge/evaluation/${assignedTeams[0]?.id || "T042"}`)}
+            disabled={isLoading || !!error || teams.length === 0}
+            onClick={() => router.push(`/judge/evaluation/${teams[0]?.id}`)}
           >
-            Start Next Rubric
+            Open Next Rubric
           </Button>
         </div>
+      </header>
+
+      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 text-xs text-slate-300 flex items-start gap-3">
+        <Scale className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+        <p>
+          Team assignments are loaded from the event API. The backend validates the active event and judge assignment before returning teams; this dashboard does not substitute sample teams when a request fails.
+        </p>
       </div>
 
-      {/* Role Scoping Notice */}
-      <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-300 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>
-            Jury Data Scoping Active: You have visibility only over your <strong className="text-white">{assignedTeams.length} allocated teams</strong>. Other judges' private scoring sheets and global optimization rules are locked.
-          </span>
-        </div>
-        <span className="font-mono text-[10px] text-slate-500 shrink-0">ISO-27001 JURY COMPLIANT</span>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KPICard
-          title="Assigned Queue"
-          value={assignedTeams.length}
-          subtitle="Allocated by CP-SAT"
+          title="Assigned Teams"
+          value={teams.length}
+          subtitle={isLoading ? "Loading from event API…" : "Event-scoped response"}
           icon={<Scale className="w-4 h-4 text-indigo-400" />}
         />
         <KPICard
-          title="Evaluations Completed"
-          value={completedCount}
-          accentColor="emerald"
-          subtitle={`${progressPct}% Progress`}
-          icon={<CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+          title="Current Event"
+          value={currentEvent?.name || "Not selected"}
+          subtitle="Selected event session"
+          accentColor="sky"
+          icon={<CalendarDays className="w-4 h-4 text-sky-400" />}
         />
         <KPICard
-          title="Pending Assessment"
-          value={pendingCount}
+          title="Current Round"
+          value={currentEvent?.currentRound ? `Round ${currentEvent.currentRound}` : "Not available"}
+          subtitle="Configured event value"
           accentColor="amber"
-          subtitle="Awaiting pitch evaluation"
-          icon={<Clock className="w-4 h-4 text-amber-400" />}
-        />
-        <KPICard
-          title="Average Score Given"
-          value="95.5 / 100"
-          subtitle="Consensus Index"
-          accentColor="violet"
-          icon={<Sparkles className="w-4 h-4 text-purple-400" />}
+          icon={<ClipboardCheck className="w-4 h-4 text-amber-400" />}
         />
       </div>
 
-      {/* Progress Bar */}
-      <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-2">
-        <div className="flex justify-between text-xs font-mono">
-          <span className="text-slate-300 font-semibold">Evaluation Completion Progress</span>
-          <span className="text-indigo-400 font-bold">{completedCount} of {assignedTeams.length} Teams Scored</span>
+      {isLoading && (
+        <div role="status" className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 text-sm text-slate-300">
+          Loading your assigned teams…
         </div>
-        <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-          <div
-            className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-500 rounded-full"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-      </div>
+      )}
 
-      {/* Assigned Teams Table/Queue */}
-      <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900/80 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-bold font-mono text-white uppercase tracking-wider">
-              Assigned Teams Floor Queue
-            </h3>
-            <p className="text-xs text-slate-400">
-              Visit assigned workstations in Turing Hall or call teams to presentation room
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => router.push("/judge/teams")}
-          >
-            View All Assigned Teams →
+      {!isLoading && error && (
+        <div role="alert" className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5 space-y-2">
+          <h2 className="text-sm font-semibold text-rose-200">Your judge queue is unavailable</h2>
+          <p className="text-xs leading-relaxed text-rose-100/80">{error}</p>
+        </div>
+      )}
+
+      {!isLoading && !error && teams.length === 0 && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-8 text-center space-y-2">
+          <Scale className="w-8 h-8 text-slate-500 mx-auto" />
+          <h2 className="text-sm font-semibold text-slate-200">No assigned teams</h2>
+          <p className="text-xs text-slate-400">
+            The event service has not returned any teams for this judge yet.
+          </p>
+          <Button size="sm" variant="outline" onClick={() => router.push("/judge/teams")}>
+            View Assignment Queue
           </Button>
         </div>
+      )}
 
-        <div className="space-y-3">
-          {assignedTeams.map((team, idx) => {
-            const isEvaluated = idx === 0 || idx === 1;
+      {!isLoading && !error && teams.length > 0 && (
+        <section className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold font-mono text-white uppercase tracking-wider">
+                Assigned Teams
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                {teams.length} team{teams.length === 1 ? "" : "s"} returned for this judge and event.
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => router.push("/judge/teams")}>
+              View All Assignments <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+          </div>
 
-            return (
-              <div
-                key={team.id}
-                className="p-4 rounded-2xl border border-slate-800 bg-slate-950/60 hover:bg-slate-950 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+          <div className="space-y-3">
+            {teams.slice(0, 5).map((team) => (
+              <article key={team.id} className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="space-y-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs font-bold text-indigo-400">{team.id}</span>
                     <span className="font-semibold text-slate-100 text-sm">{team.name}</span>
-                    <StatusBadge status={isEvaluated ? "SUBMITTED" : "PENDING"} />
+                    <span className="rounded-full border border-slate-700 bg-slate-900 px-2 py-0.5 text-[10px] text-slate-400">
+                      Assigned
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-400 max-w-xl">{team.project.title}</p>
-                  <div className="text-[11px] text-slate-500 font-mono flex items-center gap-3">
+                  <p className="text-xs text-slate-400">{team.project.title || "Project details not provided"}</p>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
                     <span className="flex items-center gap-1 text-slate-300">
                       <MapPin className="w-3 h-3 text-slate-500" />
-                      {team.assignedVenueName || team.assignedVenue}
+                      {team.assignedVenueName || team.assignedVenue || "Not allocated"}
                     </span>
-                    <span>Bench: <strong className="text-indigo-300">{team.assignedBench}</strong></span>
-                    <span>Track: {team.project.domain}</span>
+                    <span>Bench: <strong className="text-indigo-300">{team.assignedBench || "Not allocated"}</strong></span>
+                    <span>Check-in: <StatusBadge status={team.checkInStatus} /></span>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  {isEvaluated && (
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-500 font-mono block">Recorded Score</span>
-                      <span className="text-sm font-bold font-mono text-emerald-400">{team.totalScore || 96.5} / 100</span>
-                    </div>
-                  )}
-                  <Button
-                    size="sm"
-                    variant={isEvaluated ? "outline" : "primary"}
-                    onClick={() => router.push(`/judge/evaluation/${team.id}`)}
-                    rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                  >
-                    {isEvaluated ? "Review Rubric" : "Start Evaluation"}
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => router.push(`/judge/evaluation/${team.id}`)}
+                  rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+                >
+                  Open Rubric
+                </Button>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
