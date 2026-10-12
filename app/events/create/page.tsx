@@ -74,9 +74,11 @@ export default function CreateEventPage() {
     }
   };
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
-  const portalUrl = createdEvent ? `${origin}/events/${createdEvent.id}/portal` : "";
-  const loginUrl = createdEvent ? `${origin}/events/${createdEvent.id}/login` : "";
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const appBase = `${origin}${basePath}`;
+  const portalUrl = createdEvent ? `${appBase}/events/portal?eventId=${encodeURIComponent(createdEvent.id)}` : "";
+  const loginUrl = createdEvent ? `${appBase}/events/login?eventId=${encodeURIComponent(createdEvent.id)}` : "";
 
   const copyToClipboard = (text: string, type: "portal" | "login") => {
     if (typeof window !== "undefined") {
@@ -164,14 +166,14 @@ export default function CreateEventPage() {
             <Button
               variant="outline"
               size="md"
-              onClick={() => router.push(`/events/${createdEvent.id}/roles`)}
+              onClick={() => router.push(`/people?eventId=${encodeURIComponent(createdEvent.id)}`)}
             >
               Delegate Roles & Staff (Add Volunteers/Judges)
             </Button>
             <Button
               variant="primary"
               size="md"
-              onClick={() => router.push(`/events/${createdEvent.id}`)}
+              onClick={() => router.push(`/events/detail?eventId=${encodeURIComponent(createdEvent.id)}`)}
               rightIcon={<ArrowRight className="w-4 h-4" />}
             >
               Go to Event Command Hub
