@@ -11,7 +11,7 @@ import type { User } from "@/types";
 type Registration = {
   eventId: string;
   eventName: string;
-  status: string;
+  status?: string | null;
   registered?: boolean;
   registrationId?: string | null;
   createdAt?: string | null;
