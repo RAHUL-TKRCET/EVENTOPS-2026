@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { DemoModeNotice } from "@/components/ui/DemoModeNotice";
 import { KPICard, ChartCard } from "@/components/ui/KPICard";
 import { StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -188,6 +189,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <DemoModeNotice />
       {/* Header Banner */}
       <div className="p-5 rounded-2xl border border-indigo-500/20 bg-gradient-to-r from-indigo-950/40 via-slate-900 to-slate-950 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
@@ -389,6 +391,7 @@ export default function DashboardPage() {
 
         {/* Right 1 Col: Quick Control Widgets */}
         <div className="space-y-6">
+      <DemoModeNotice />
           {/* Quick Intelligent Optimizer Status */}
           <div className="p-5 rounded-2xl border border-indigo-500/30 bg-slate-900/80 space-y-3">
             <div className="flex items-center justify-between">
