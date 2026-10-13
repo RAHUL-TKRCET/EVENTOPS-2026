@@ -141,7 +141,7 @@ export default function EventRegistrationStatusPage() {
           <div className="flex flex-wrap gap-3">
             {isRegistered && <Button variant="primary" onClick={() => router.push(`/participant?eventId=${encodeURIComponent(event.id)}`)}>Open participant workspace <ArrowRight className="ml-2 h-4 w-4" /></Button>}
             {!isRegistered && getToken() && registrationOpen && <Button variant="primary" disabled={busy || loadingRegistration} onClick={() => void handleRegister()}>{busy ? "Registering…" : "Complete event registration"} <ArrowRight className="ml-2 h-4 w-4" /></Button>}
-            {!isRegistered && !getToken() && registrationOpen && <Button variant="primary" onClick={goToRegistration}>Sign in or create account <ArrowRight className="ml-2 h-4 w-4" /></Button>}
+            {!isRegistered && registrationOpen && <Button variant="primary" onClick={goToRegistration}>Sign in or create account <ArrowRight className="ml-2 h-4 w-4" /></Button>}
             {!isRegistered && getToken() && !registrationOpen && <Button variant="outline" onClick={() => router.push(`/events/login?eventId=${encodeURIComponent(event.id)}&role=PARTICIPANT`)}>Sign in to another account</Button>}
             <Button variant="outline" onClick={backToPortal}><ArrowLeft className="mr-2 h-4 w-4" />Back to event portal</Button>
           </div>
