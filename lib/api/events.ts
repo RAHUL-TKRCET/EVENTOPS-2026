@@ -25,9 +25,21 @@ export const eventsApi = {
   },
 
   async update(id: string, updates: Partial<EventItem>): Promise<EventItem> {
-    return apiRequest<EventItem>(`/events/${id}`, {
+    return apiRequest<EventItem>(`/events/${encodeURIComponent(id)}`, {
       method: "PUT",
       body: JSON.stringify(updates),
+    });
+  },
+
+  async publish(id: string): Promise<EventItem> {
+    return apiRequest<EventItem>(`/events/${encodeURIComponent(id)}/publish`, {
+      method: "POST",
+    });
+  },
+
+  async deleteDraft(id: string): Promise<void> {
+    return apiRequest<void>(`/events/${encodeURIComponent(id)}`, {
+      method: "DELETE",
     });
   },
 
