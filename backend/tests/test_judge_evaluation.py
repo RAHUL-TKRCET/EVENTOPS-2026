@@ -332,3 +332,39 @@ def test_scorecard_endpoint_uses_real_assignment_resolver(persisted_judge_db):
     assert result.judgeId == "judge-a"
     assert result.scores == {"criterion-1": 8.0}
     assert result.feedback == "Persisted feedback"
+
+
+
+def test_scorecard_endpoint_denies_unassigned_team_with_persisted_rows(persisted_judge_db):
+    db = persisted_judge_db
+    user = _persisted_judge_user("user-a", "evt-a")
+    event = _persisted_event("evt-a")
+    team = Team(
+        id="team-unassigned", event_id="evt-a", name="Unassigned Team",
+        lead_name="Lead", lead_email="lead@example.com",
+        project_title="Unassigned Project", project_domain="AI",
+        qr_code_token="test-token-unassigned", assigned_judges=[],
+    )
+    round_record = Round(
+        id="round-a", event_id="evt-a", name="Round A", round_order=1,
+        status="ACTIVE",
+        start_time=datetime.now(timezone.utc) + timedelta(hours=1),
+        end_time=datetime.now(timezone.utc) + timedelta(hours=2),
+    )
+    judge = Judge(
+        id="judge-a", event_id="evt-a", user_id=user.id,
+        name=user.name, email=user.email, assigned_teams=[],
+    )
+    db.add_all([event, user, team, round_record, judge])
+    db.flush()
+
+    with pytest.raises(HTTPException) as error:
+        evaluation.get_my_team_evaluation(
+            team_id="team-unassigned",
+            roundId="round-a",
+            db=db,
+            current_user=user,
+        )
+
+    assert error.value.status_code == 403
+    assert "not assigned" in error.value.detail.lower()
