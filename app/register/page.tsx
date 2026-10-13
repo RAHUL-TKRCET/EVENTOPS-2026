@@ -50,11 +50,12 @@ export default function RegisterPage() {
       setCurrentRole(res.user.role);
       if (isOrganizationOwner) {
         router.push("/dashboard");
+      } else if (eventId) {
+        // Account creation and event enrollment are separate operations.
+        // Keep the event context and state plainly that enrollment is pending.
+        router.push(`/events/registration-status?eventId=${encodeURIComponent(eventId)}&state=account-created`);
       } else {
-        const destination = eventId
-          ? `/participant?eventId=${encodeURIComponent(eventId)}`
-          : "/participant";
-        router.push(destination);
+        router.push("/participant");
       }
     } catch (error) {
       setErrorMsg(error instanceof Error ? error.message : "Registration failed. Please try again.");
@@ -68,7 +69,11 @@ export default function RegisterPage() {
       <div className="space-y-2 text-center">
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 font-mono text-xl font-bold text-white shadow-lg shadow-indigo-500/30">EO</div>
         <h2 className="font-mono text-2xl font-bold tracking-tight text-white">Create EVENTOPS Account</h2>
-        <p className="text-xs text-slate-400">Start an organization workspace or create a participant account.</p>
+        <p className="text-xs text-slate-400">
+          {eventId
+            ? `Create a participant account to continue with event ${eventId}. Account creation does not enroll you in the event.`
+            : "Start an organization workspace or create a participant account."}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
