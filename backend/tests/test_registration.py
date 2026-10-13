@@ -211,6 +211,146 @@ def _create_participant_and_event(client, *, status="PUBLISHED", deadline_offset
     return email, token, user_id, event_id
 
 
+
+def _create_org_admin_and_draft(client, *, description="Ready for publication", location="Tech Innovation Center",
+                                status="DRAFT", start_offset=timedelta(days=7),
+                                end_offset=timedelta(days=9), deadline_offset=timedelta(days=5)):
+    email = f"admin-{uuid.uuid4().hex[:10]}@example.com"
+    response = client.post("/api/v1/auth/register", json={
+        "name": "Event Owner",
+        "email": email,
+        "password": "A-strong-test-password-2026",
+        "role": "ORGANIZATION_ADMIN",
+        "organizationName": f"Org {uuid.uuid4().hex[:6]}",
+    })
+    assert response.status_code == 201, response.text
+    token = response.json()["accessToken"]
+    organization_id = response.json()["user"]["organizationId"]
+    now = datetime.now(timezone.utc)
+    event_id = f"evt-{uuid.uuid4().hex[:10]}"
+    db = client.registration_test_session()
+    try:
+        db.add(Event(
+            id=event_id, name="Lifecycle Test Event", type="HACKATHON",
+            description=description, location=location, status=status,
+            organization_id=organization_id, owner_id=response.json()["user"]["id"],
+            start_date=now + start_offset, end_date=now + end_offset,
+            registration_deadline=now + deadline_offset,
+        ))
+        db.commit()
+    finally:
+        db.close()
+    return token, event_id
+
+
+def test_publish_event_changes_only_valid_draft_in_authorized_organization(client):
+    token, event_id = _create_org_admin_and_draft(client)
+    response = client.post(f"/api/v1/events/{event_id}/publish", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "PUBLISHED"
+
+    db = client.registration_test_session()
+    try:
+        event = db.query(Event).filter(Event.id == event_id).one()
+        assert event.status == "PUBLISHED"
+    finally:
+        db.close()
+
+
+def test_publish_event_rejects_invalid_public_details_and_date_order(client):
+    token, missing_description = _create_org_admin_and_draft(client, description="")
+    invalid_response = client.post(
+        f"/api/v1/events/{missing_description}/publish",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert invalid_response.status_code == 422
+    assert "description" in str(invalid_response.json()["detail"]).lower()
+
+    token2, invalid_dates = _create_org_admin_and_draft(
+        client, start_offset=timedelta(days=9), end_offset=timedelta(days=7),
+        deadline_offset=timedelta(days=5),
+    )
+    date_response = client.post(
+        f"/api/v1/events/{invalid_dates}/publish",
+        headers={"Authorization": f"Bearer {token2}"},
+    )
+    assert date_response.status_code == 422
+    assert "end date" in str(date_response.json()["detail"]).lower()
+
+
+def test_publish_and_delete_require_authentication_and_scope(client):
+    _, event_id = _create_org_admin_and_draft(client)
+    assert client.post(f"/api/v1/events/{event_id}/publish").status_code == 401
+    assert client.delete(f"/api/v1/events/{event_id}").status_code == 401
+
+    token, _ = _create_org_admin_and_draft(client)
+    _, target_id = _create_org_admin_and_draft(client)
+    denied_publish = client.post(
+        f"/api/v1/events/{target_id}/publish",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    denied_delete = client.delete(
+        f"/api/v1/events/{target_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert denied_publish.status_code == 403
+    assert denied_delete.status_code == 403
+
+
+def test_delete_draft_allows_only_empty_draft_and_blocks_linked_history(client):
+    token, empty_event_id = _create_org_admin_and_draft(client)
+    deleted = client.delete(
+        f"/api/v1/events/{empty_event_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert deleted.status_code == 204, deleted.text
+    db = client.registration_test_session()
+    try:
+        assert db.query(Event).filter(Event.id == empty_event_id).first() is None
+    finally:
+        db.close()
+
+    token2, linked_event_id = _create_org_admin_and_draft(client)
+    db = client.registration_test_session()
+    try:
+        db.add(EventMember(
+            id=f"mem-{uuid.uuid4().hex[:10]}", event_id=linked_event_id, user_id=None,
+            name="Roster Placeholder", email=f"roster-{uuid.uuid4().hex[:8]}@example.com",
+            role="PARTICIPANT", status="ACTIVE",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    blocked = client.delete(
+        f"/api/v1/events/{linked_event_id}",
+        headers={"Authorization": f"Bearer {token2}"},
+    )
+    assert blocked.status_code == 409
+    assert "event_members" in str(blocked.json()["detail"])
+    db = client.registration_test_session()
+    try:
+        assert db.query(Event).filter(Event.id == linked_event_id).first() is not None
+    finally:
+        db.close()
+
+
+def test_delete_draft_rejects_published_event_and_generic_status_updates(client):
+    token, event_id = _create_org_admin_and_draft(client, status="PUBLISHED")
+    delete_response = client.delete(
+        f"/api/v1/events/{event_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert delete_response.status_code == 409
+
+    update_response = client.put(
+        f"/api/v1/events/{event_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"status": "DRAFT"},
+    )
+    assert update_response.status_code == 400
+
+
 def test_event_registration_persists_membership_and_returns_scoped_session(client):
     email, token, user_id, event_id = _create_participant_and_event(client)
     response = client.post(
