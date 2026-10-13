@@ -51,9 +51,14 @@ export default function RegisterPage() {
       if (isOrganizationOwner) {
         router.push("/dashboard");
       } else if (eventId) {
-        // Account creation and event enrollment are separate operations.
-        // Keep the event context and state plainly that enrollment is pending.
-        router.push(`/events/registration-status?eventId=${encodeURIComponent(eventId)}&state=account-created`);
+        // Attempt the event-scoped membership write after account creation. If the
+        // event is closed/unavailable, preserve the account and show an honest retry state.
+        try {
+          await authApi.registerForEvent(eventId);
+          router.push(`/events/registration-status?eventId=${encodeURIComponent(eventId)}&state=registered`);
+        } catch {
+          router.push(`/events/registration-status?eventId=${encodeURIComponent(eventId)}&state=account-created`);
+        }
       } else {
         router.push("/participant");
       }
