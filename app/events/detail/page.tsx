@@ -184,6 +184,40 @@ export default function StaticEventDetailPage() {
     return counts;
   }, {}) ?? {};
 
+  const canManageLifecycle = currentRole === "ORGANIZATION_ADMIN" || currentRole === "SUPER_ADMIN";
+
+  const publishCurrentEvent = async () => {
+    if (!event || !canManageLifecycle || lifecycleBusy) return;
+    if (!window.confirm(`Publish "${event.name}"? The public portal will show the published event, and registration may open if its deadline is still in the future.`)) return;
+    setLifecycleBusy(true);
+    setLifecycleNotice("");
+    setError(null);
+    try {
+      const updated = await eventsApi.publish(event.id);
+      setEvent(updated);
+      setLifecycleNotice("Event published successfully. The status has been saved by the backend.");
+    } catch (publishError) {
+      setError(classifyFailure(publishError));
+    } finally {
+      setLifecycleBusy(false);
+    }
+  };
+
+  const deleteCurrentDraft = async () => {
+    if (!event || !canManageLifecycle || lifecycleBusy || event.status?.toUpperCase() !== "DRAFT") return;
+    if (!window.confirm(`Remove the draft "${event.name}" permanently? This cannot be undone. Drafts with linked records will be blocked by the backend.`)) return;
+    setLifecycleBusy(true);
+    setLifecycleNotice("");
+    setError(null);
+    try {
+      await eventsApi.deleteDraft(event.id);
+      router.push("/events");
+    } catch (deleteError) {
+      setError(classifyFailure(deleteError));
+      setLifecycleBusy(false);
+    }
+  };
+
   const copy = async (value: string, kind: "portal" | "login") => {
     try {
       await navigator.clipboard.writeText(value);
