@@ -82,8 +82,7 @@ export default function EventRegistrationStatusPage() {
           {event.status?.toUpperCase() === "PUBLISHED" && <p className="rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-slate-300">The event is published. The current backend does not yet expose a persisted participant-enrollment operation from this page, so this step will not claim to register you automatically.</p>}
           <div className="flex flex-wrap gap-3">
             {registrationOpen && <Button variant="primary" onClick={signInForEvent}>Sign in as participant <ArrowRight className="ml-2 h-4 w-4" /></Button>}
-            {canStartAccount && <Button variant="outline" onClick={createAccount}>Create participant account</Button>
-            }}
+            {canStartAccount && <Button variant="outline" onClick={createAccount}>Create participant account</Button>}
             <Button variant="outline" onClick={backToPortal}><ArrowLeft className="mr-2 h-4 w-4" />Back to event portal</Button>
           </div>
           <p className="text-xs leading-5 text-slate-500">Event IDs identify the requested context, not access rights. Participant access is granted only after backend verification of the event enrollment.</p>
