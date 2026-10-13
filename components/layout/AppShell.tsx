@@ -44,7 +44,9 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset-password") ||
     pathname.startsWith("/verify-otp") ||
-    pathname.includes("/portal") ||
+    pathname.startsWith("/events/register") ||
+    pathname.startsWith("/events/registration-status") ||
+    pathname.startsWith("/events/portal") ||
     pathname.endsWith("/login");
 
   useEffect(() => {
