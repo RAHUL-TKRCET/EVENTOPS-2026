@@ -57,7 +57,21 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
     let errorDetail = `HTTP ${response.status} ${response.statusText}`;
     try {
       const body = await response.json();
-      errorDetail = body.detail || body.message || body.error || errorDetail;
+      const detail = body.detail;
+      if (typeof detail === "string") {
+        errorDetail = detail;
+      } else if (detail && typeof detail === "object") {
+        const parts: string[] = [];
+        if (typeof detail.message === "string") parts.push(detail.message);
+        if (Array.isArray(detail.problems)) parts.push(...detail.problems.filter((item: unknown): item is string => typeof item === "string"));
+        if (Array.isArray(detail.dependencies) && detail.dependencies.every((item: unknown) => typeof item === "string")) {
+          parts.push(`Linked records: ${detail.dependencies.join(", ")}.`);
+        }
+        if (typeof detail.nextStep === "string") parts.push(detail.nextStep);
+        errorDetail = parts.join(" ") || JSON.stringify(detail);
+      } else if (typeof body.message === "string" || typeof body.error === "string") {
+        errorDetail = body.message || body.error;
+      }
     } catch {
       // Keep HTTP status when the response is not JSON.
     }
