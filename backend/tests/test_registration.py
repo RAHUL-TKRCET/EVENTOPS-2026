@@ -95,6 +95,42 @@ def test_privileged_roles_cannot_be_self_registered(client, role):
     assert response.status_code == 403
 
 
+
+def test_account_creation_with_event_context_does_not_enroll_automatically(client):
+    now = datetime.now(timezone.utc)
+    event_id = f"evt-{uuid.uuid4().hex[:10]}"
+    db = client.registration_test_session()
+    try:
+        db.add(Event(
+            id=event_id, name="Account Creation Only", type="HACKATHON", status="PUBLISHED",
+            description="A test event", location="Main Hall",
+            start_date=now + timedelta(days=3), end_date=now + timedelta(days=4),
+            registration_deadline=now + timedelta(days=2),
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    # Account creation has no event-enrollment side effect. Enrollment remains a separate endpoint.
+    response = client.post("/api/v1/auth/register", json={
+        "name": "Context Participant",
+        "email": f"context-{uuid.uuid4().hex[:10]}@example.com",
+        "password": "A-strong-test-password-2026",
+        "role": "PARTICIPANT",
+    })
+    assert response.status_code == 201, response.text
+    user_id = response.json()["user"]["id"]
+    db = client.registration_test_session()
+    try:
+        assert db.query(EventMember).filter(
+            EventMember.event_id == event_id,
+            EventMember.user_id == user_id,
+            EventMember.role == "PARTICIPANT",
+        ).count() == 0
+    finally:
+        db.close()
+
+
 def test_participant_registration_does_not_attach_to_default_organization(client):
     response = client.post("/api/v1/auth/register", json={
         "name": "Participant Test",
