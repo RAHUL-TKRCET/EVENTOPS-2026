@@ -64,6 +64,8 @@ export default function EventRegistrationPage() {
       setCurrentUser(session.user);
       setCurrentRole(session.user.role);
       const result = await authApi.registerForEvent(eventId);
+      setCurrentUser(result.session.user);
+      setCurrentRole(result.session.user.role);
       router.push(`/events/registration-status?eventId=${encodeURIComponent(eventId)}&state=registered`);
     } catch (error) {
       const status = error && typeof error === "object" && "status" in error ? Number((error as {status?: unknown}).status) : undefined;
