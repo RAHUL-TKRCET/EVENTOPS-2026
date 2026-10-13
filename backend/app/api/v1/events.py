@@ -15,6 +15,17 @@ from app.models.entities import (
     Team,
     Venue,
     Judge,
+    Evaluation,
+    AttendanceRecord,
+    AllocationConstraint,
+    AllocationResult,
+    Volunteer,
+    VolunteerTask,
+    Resource,
+    ResourceDistribution,
+    Incident,
+    AuditLog,
+    Invitation,
     User,
 )
 from app.schemas.entities import (
@@ -315,7 +326,10 @@ def update_event(
     if payload.location is not None:
         event.location = payload.location
     if payload.status is not None:
-        event.status = payload.status
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Event status cannot be changed through the general update endpoint. Use the dedicated lifecycle action.",
+        )
     if payload.expectedParticipants is not None:
         event.expected_participants = payload.expectedParticipants
     if payload.currentRound is not None:
@@ -326,6 +340,112 @@ def update_event(
     db.commit()
     db.refresh(event)
     return map_event_to_response(event, db)
+
+
+@router.post("/{event_id}/publish", response_model=EventResponse)
+def publish_event(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN"])),
+):
+    """Publish a draft only after verifying its tenant scope and public readiness."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, current_user)
+
+    current_status = (event.status or "DRAFT").strip().upper()
+    if current_status == "PUBLISHED":
+        return map_event_to_response(event, db)
+    if current_status != "DRAFT":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Only draft events can be published. Current status: {current_status}.",
+        )
+
+    problems = []
+    if not (event.name or "").strip():
+        problems.append("Event name is required.")
+    if not (event.type or "").strip():
+        problems.append("Event type is required.")
+    if not (event.description or "").strip():
+        problems.append("Add a public event description before publishing.")
+    if not (event.location or "").strip():
+        problems.append("Add an event location before publishing.")
+    if not event.start_date or not event.end_date:
+        problems.append("Start and end dates are required.")
+    if not event.registration_deadline:
+        problems.append("A registration deadline is required.")
+
+    def utc(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    if event.start_date and event.end_date and utc(event.start_date) >= utc(event.end_date):
+        problems.append("The event end date and time must be after the start.")
+    if event.start_date and event.registration_deadline and utc(event.registration_deadline) > utc(event.start_date):
+        problems.append("The registration deadline must be on or before the event start.")
+
+    if problems:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": "This draft is not ready to publish.", "problems": problems},
+        )
+
+    event.status = "PUBLISHED"
+    db.commit()
+    db.refresh(event)
+    return map_event_to_response(event, db)
+
+
+@router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_draft_event(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN"])),
+):
+    """Delete only an empty draft. The backend blocks deletion if any linked history exists."""
+    event = db.query(Event).filter(Event.id == event_id).with_for_update().first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    require_event_scope(event, current_user)
+
+    current_status = (event.status or "DRAFT").strip().upper()
+    if current_status != "DRAFT":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only draft events can be permanently deleted. Published or operational events must be managed through an approved lifecycle workflow.",
+        )
+
+    # These rows contain event identity, participation, assignment, operations, or audit history.
+    # Do not let ON DELETE CASCADE silently erase them when deleting an event.
+    dependent_models = (
+        EventMember, Invitation, Round, TimeSlot, EventRule, Venue, Team, Judge,
+        Evaluation, AttendanceRecord, AllocationConstraint, AllocationResult,
+        Volunteer, VolunteerTask, Resource, ResourceDistribution, Incident, AuditLog,
+    )
+    dependencies = []
+    for model in dependent_models:
+        if db.query(model).filter(model.event_id == event_id).first() is not None:
+            dependencies.append(model.__tablename__)
+
+    # Rows indirectly owned by a parent (criteria, benches, team members) are protected by
+    # checking their parent (round, venue, or team) above. Audit logs are checked separately
+    # because their event_id is intentionally not a foreign key.
+    if dependencies:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "This draft cannot be deleted because linked records or operational history exist.",
+                "dependencies": dependencies,
+                "nextStep": "Keep the event and use an approved archive/cancellation workflow if it should no longer be active.",
+            },
+        )
+
+    db.delete(event)
+    db.commit()
+    return None
 
 
 @router.get("/{event_id}/members")

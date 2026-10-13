@@ -51,18 +51,11 @@ export default function RegisterPage() {
         setCurrentRole(res.user.role);
         router.push("/dashboard");
       } else if (eventId) {
-        // Attempt enrollment with the scoped session returned by the backend.
-        // If the event is closed/unavailable, preserve account creation and offer retry.
-        try {
-          const enrollment = await authApi.registerForEvent(eventId);
-          setCurrentUser(enrollment.session.user);
-          setCurrentRole(enrollment.session.user.role);
-          router.push(`/events/registration-status?eventId=${encodeURIComponent(eventId)}&state=registered`);
-        } catch {
-          setCurrentUser(res.user);
-          setCurrentRole(res.user.role);
-          router.push(`/events/registration-status?eventId=${encodeURIComponent(eventId)}&state=account-created`);
-        }
+        // Account creation is not event enrollment. Return to the event-specific
+        // registration page so the participant can explicitly enroll when eligible.
+        setCurrentUser(res.user);
+        setCurrentRole(res.user.role);
+        router.push(`/events/register?eventId=${encodeURIComponent(eventId)}&state=account-created`);
       } else {
         setCurrentUser(res.user);
         setCurrentRole(res.user.role);

@@ -22,7 +22,7 @@ export default function EventRegistrationPage() {
   const router = useRouter();
   const params = useSearchParams();
   const eventId = (params.get("eventId") || "").trim();
-  const { setCurrentUser, setCurrentRole, setCurrentEvent } = useAppStore();
+  const { currentUser, setCurrentUser, setCurrentRole, setCurrentEvent } = useAppStore();
   const [event, setEvent] = useState<EventItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -51,7 +51,17 @@ export default function EventRegistrationPage() {
   }, [eventId, setCurrentEvent]);
 
   const deadline = event?.registrationDeadline ? Date.parse(event.registrationDeadline) : Number.NaN;
-  const registrationOpen = event?.status?.toUpperCase() === "PUBLISHED" && Number.isFinite(deadline) && deadline > Date.now();
+  const isPublished = event?.status?.toUpperCase() === "PUBLISHED";
+  const hasValidDeadline = Number.isFinite(deadline);
+  const registrationOpen = isPublished && hasValidDeadline && deadline > Date.now();
+  const isParticipantSession = currentUser?.role?.toUpperCase() === "PARTICIPANT";
+  const accountCreated = params.get("state") === "account-created";
+
+  const registrationClosedMessage = !isPublished
+    ? `This event is currently ${event?.status || "unpublished"}. The organizer must publish it before new enrollment is available.`
+    : !event?.registrationDeadline || !hasValidDeadline
+      ? "Registration is closed because the event does not have a valid registration deadline. Contact the organizer."
+      : "The registration deadline has passed. New enrollment is closed; contact the organizer if you think this is incorrect.";
 
   const handleRegister = async (formEvent: React.FormEvent) => {
     formEvent.preventDefault();
@@ -60,9 +70,11 @@ export default function EventRegistrationPage() {
     setNotice("");
     setFailure(null);
     try {
-      const session = await authApi.login(email, password, "PARTICIPANT");
-      setCurrentUser(session.user);
-      setCurrentRole(session.user.role);
+      if (!isParticipantSession) {
+        const session = await authApi.login(email, password, "PARTICIPANT");
+        setCurrentUser(session.user);
+        setCurrentRole(session.user.role);
+      }
       const result = await authApi.registerForEvent(eventId);
       setCurrentUser(result.session.user);
       setCurrentRole(result.session.user.role);
@@ -95,14 +107,32 @@ export default function EventRegistrationPage() {
         {event && (
           <section className="space-y-5 rounded-3xl border border-slate-800 bg-slate-900/80 p-6">
             <div><h2 className="font-semibold text-white">Sign in to enroll</h2><p className="mt-1 text-sm leading-6 text-slate-400">Use your existing participant account. A successful login alone does not register you; this form submits a separate event registration that the backend verifies and stores.</p></div>
-            {!registrationOpen && <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">New registration is unavailable because this event is unpublished, or its registration deadline is missing or has passed.</p>}
-            {registrationOpen && <form onSubmit={handleRegister} className="space-y-4">
-              <Input label="Participant email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-              <Input label="Password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-              <Button type="submit" variant="primary" disabled={busy}>{busy ? "Checking account and registering…" : "Sign in & register for this event"} <ArrowRight className="ml-2 h-4 w-4" /></Button>
-            </form>}
+            {accountCreated && <p role="status" className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-sm text-sky-200">Your participant account has been created. You are not enrolled yet; enrollment is a separate action confirmed only after the backend saves it.</p>}
+            {!registrationOpen && <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">{registrationClosedMessage}</p>}
+            {registrationOpen && (
+              <form onSubmit={handleRegister} className="space-y-4">
+                {isParticipantSession ? (
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-200">
+                    Signed in as {currentUser?.name || currentUser?.email}. Select enroll to confirm your registration for this event.
+                  </div>
+                ) : (
+                  <>
+                    <Input label="Participant email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+                    <Input label="Password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+                  </>
+                )}
+                <Button type="submit" variant="primary" disabled={busy}>
+                  {busy ? "Saving event enrollment…" : isParticipantSession ? "Enroll in this event" : "Sign in & continue to enrollment"}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </form>
+            )}
             <div className="flex flex-wrap gap-3 border-t border-slate-800 pt-4">
-              <Button variant="outline" onClick={() => router.push(`/register?accountType=PARTICIPANT&eventId=${encodeURIComponent(eventId)}`)}>Create participant account</Button>
+              {!isParticipantSession && (
+                <Button variant="outline" onClick={() => router.push(`/register?accountType=PARTICIPANT&eventId=${encodeURIComponent(eventId)}`)}>
+                  {registrationOpen ? "Create participant account (not enrollment)" : "Create participant account (does not register you)"}
+                </Button>
+              )}
               <Button variant="outline" onClick={() => router.push(`/events/portal?eventId=${encodeURIComponent(eventId)}`)}><ArrowLeft className="mr-2 h-4 w-4" />Event portal</Button>
             </div>
             <p className="text-xs leading-5 text-slate-500">Event ID is only context. Enrollment is confirmed only after an active participant membership is persisted by the backend. Team creation and staff assignment are separate workflows.</p>

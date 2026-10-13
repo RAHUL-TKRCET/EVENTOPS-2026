@@ -77,6 +77,7 @@ class EventUpdate(BaseModel):
     type: Optional[str] = None
     description: Optional[str] = None
     location: Optional[str] = None
+    # Lifecycle transitions are handled by dedicated server-validated endpoints.
     status: Optional[str] = None
     expectedParticipants: Optional[int] = None
     currentRound: Optional[int] = None

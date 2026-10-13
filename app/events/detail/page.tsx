@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Input, Textarea } from "@/components/ui/Input";
+import { useAppStore } from "@/store";
 
 type EventMetrics = {
   totalTeams: number;
@@ -111,6 +112,7 @@ export default function StaticEventDetailPage() {
   const router = useRouter();
   const eventId = (searchParams.get("eventId") || "").trim();
   const section = (searchParams.get("section") || "").trim().toLowerCase();
+  const { currentRole } = useAppStore();
   const [event, setEvent] = useState<EventItem | null>(null);
   const [metrics, setMetrics] = useState<EventMetrics | null>(null);
   const [members, setMembers] = useState<EventMember[] | null>(null);
@@ -120,6 +122,9 @@ export default function StaticEventDetailPage() {
   const [membersUnavailable, setMembersUnavailable] = useState(false);
   const [copiedPortal, setCopiedPortal] = useState(false);
   const [copiedLogin, setCopiedLogin] = useState(false);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  const [lifecycleNotice, setLifecycleNotice] = useState("");
+  const [lifecycleError, setLifecycleError] = useState<ApiFailure | null>(null);
 
   const loadEvent = useCallback(async () => {
     setIsLoading(true);
@@ -179,6 +184,40 @@ export default function StaticEventDetailPage() {
     counts[role] = (counts[role] || 0) + 1;
     return counts;
   }, {}) ?? {};
+
+  const canManageLifecycle = currentRole === "ORGANIZATION_ADMIN" || currentRole === "SUPER_ADMIN";
+
+  const publishCurrentEvent = async () => {
+    if (!event || !canManageLifecycle || lifecycleBusy) return;
+    if (!window.confirm(`Publish "${event.name}"? The public portal will show the published event, and registration may open if its deadline is still in the future.`)) return;
+    setLifecycleBusy(true);
+    setLifecycleNotice("");
+    setLifecycleError(null);
+    try {
+      const updated = await eventsApi.publish(event.id);
+      setEvent(updated);
+      setLifecycleNotice("Event published successfully. The status has been saved by the backend.");
+    } catch (publishError) {
+      setLifecycleError(classifyFailure(publishError));
+    } finally {
+      setLifecycleBusy(false);
+    }
+  };
+
+  const deleteCurrentDraft = async () => {
+    if (!event || !canManageLifecycle || lifecycleBusy || event.status?.toUpperCase() !== "DRAFT") return;
+    if (!window.confirm(`Remove the draft "${event.name}" permanently? This cannot be undone. Drafts with linked records will be blocked by the backend.`)) return;
+    setLifecycleBusy(true);
+    setLifecycleNotice("");
+    setLifecycleError(null);
+    try {
+      await eventsApi.deleteDraft(event.id);
+      router.push("/events");
+    } catch (deleteError) {
+      setLifecycleError(classifyFailure(deleteError));
+      setLifecycleBusy(false);
+    }
+  };
 
   const copy = async (value: string, kind: "portal" | "login") => {
     try {
@@ -254,6 +293,8 @@ export default function StaticEventDetailPage() {
           {section !== "settings" && <p className="text-xs text-slate-500">Displayed from the authorized event API response. Changes are available only through implemented backend write endpoints.</p>}
         </section>
       )}
+      {lifecycleNotice && <p role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">{lifecycleNotice}</p>}
+      {lifecycleError && <p role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">{lifecycleError.message}</p>}
       <div className="flex items-center justify-between gap-3">
         <Button variant="outline" size="sm" onClick={() => router.push("/events")}>← Back to Events</Button>
         <Button variant="outline" size="sm" onClick={() => void loadEvent()}>Refresh event</Button>
@@ -270,6 +311,16 @@ export default function StaticEventDetailPage() {
             <p className="text-xs text-slate-400 max-w-2xl mt-1">{event.description || "No description provided."}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
+            {canManageLifecycle && event.status?.toUpperCase() === "DRAFT" && (
+              <>
+                <Button variant="primary" size="sm" disabled={lifecycleBusy} onClick={() => void publishCurrentEvent()}>
+                  {lifecycleBusy ? "Working…" : "Publish event"}
+                </Button>
+                <Button variant="outline" size="sm" disabled={lifecycleBusy} className="border-rose-500/40 text-rose-300 hover:border-rose-400 hover:text-rose-200" onClick={() => void deleteCurrentDraft()}>
+                  Delete draft
+                </Button>
+              </>
+            )}
             <Button variant="outline" size="sm" onClick={() => router.push(`/people?eventId=${encodeURIComponent(event.id)}`)} leftIcon={<UserPlus className="w-3.5 h-3.5 text-sky-400" />}>Manage Staff / Roles</Button>
             <Button variant="primary" size="sm" onClick={() => router.push("/control-center")}>Enter Control Center</Button>
           </div>
