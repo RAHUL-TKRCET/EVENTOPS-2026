@@ -14,7 +14,6 @@ from app.models.entities import (
     EventMember,
     Team,
     Venue,
-    Bench,
     Judge,
     Evaluation,
     AttendanceRecord,
