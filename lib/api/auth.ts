@@ -216,6 +216,55 @@ export const authApi = {
     };
   },
 
+  async registerForEvent(eventId: string): Promise<{
+    eventId: string;
+    eventName: string;
+    registrationId: string;
+    status: string;
+    createdAt?: string;
+    session: AuthResponse;
+  }> {
+    const result = await apiRequest<{
+      eventId: string;
+      eventName: string;
+      registrationId: string;
+      status: string;
+      createdAt?: string;
+      session: AuthResponse;
+    }>("/auth/event-registration", {
+      method: "POST",
+      body: JSON.stringify({ eventId }),
+    });
+    const session = result.session;
+    const token = session.accessToken || session.token;
+    if (typeof window !== "undefined") {
+      localStorage.setItem("eventops_token", token);
+      if (session.user.organizationId) localStorage.setItem("eventops_org_id", session.user.organizationId);
+      else localStorage.removeItem("eventops_org_id");
+    }
+    return result;
+  },
+
+  async getEventRegistration(eventId: string): Promise<{
+    eventId: string;
+    eventName: string;
+    registered: boolean;
+    registrationId?: string | null;
+    status?: string | null;
+    createdAt?: string | null;
+  }> {
+    return apiRequest(`/auth/event-registration/${encodeURIComponent(eventId)}`);
+  },
+
+  async getEventRegistrations(): Promise<Array<{
+    eventId: string;
+    eventName: string;
+    status: string;
+    createdAt?: string | null;
+  }>> {
+    return apiRequest("/auth/event-registrations");
+  },
+
   async getMe(): Promise<User> {
     return apiRequest<User>("/auth/me");
   },

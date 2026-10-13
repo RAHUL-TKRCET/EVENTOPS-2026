@@ -90,7 +90,7 @@ export default function HomePage() {
     e.preventDefault();
     const code = eventCode.trim();
     if (!code) return;
-    router.push(`/events/${encodeURIComponent(code)}/portal`);
+    router.push(`/events/portal?eventId=${encodeURIComponent(code)}`);
   };
 
   const scrollToAccess = (mode: "LOGIN" | "REGISTER") => {

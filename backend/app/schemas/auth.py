@@ -81,3 +81,32 @@ class VerifyInviteResponse(BaseModel):
     organizationName: Optional[str] = None
     message: str
 
+
+class EventRegistrationRequest(BaseModel):
+    eventId: str = Field(min_length=1, max_length=64)
+
+
+class EventRegistrationStatusResponse(BaseModel):
+    eventId: str
+    eventName: str
+    registered: bool
+    registrationId: Optional[str] = None
+    status: Optional[str] = None
+    createdAt: Optional[str] = None
+
+
+class EventRegistrationResult(BaseModel):
+    eventId: str
+    eventName: str
+    registrationId: str
+    status: str
+    createdAt: Optional[str] = None
+    session: TokenResponse
+
+
+class EventRegistrationSummary(BaseModel):
+    eventId: str
+    eventName: str
+    status: str
+    createdAt: Optional[str] = None
+

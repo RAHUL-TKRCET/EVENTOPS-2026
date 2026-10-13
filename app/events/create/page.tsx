@@ -47,6 +47,7 @@ export default function CreateEventPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [createdEvent, setCreatedEvent] = useState<any | null>(null);
   const [copiedPortal, setCopiedPortal] = useState(false);
+  const [copiedRegistration, setCopiedRegistration] = useState(false);
   const [copiedLogin, setCopiedLogin] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -78,18 +79,25 @@ export default function CreateEventPage() {
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
   const appBase = `${origin}${basePath}`;
   const portalUrl = createdEvent ? `${appBase}/events/portal?eventId=${encodeURIComponent(createdEvent.id)}` : "";
+  const registrationUrl = createdEvent ? `${appBase}/events/register?eventId=${encodeURIComponent(createdEvent.id)}` : "";
   const loginUrl = createdEvent ? `${appBase}/events/login?eventId=${encodeURIComponent(createdEvent.id)}` : "";
 
-  const copyToClipboard = (text: string, type: "portal" | "login") => {
-    if (typeof window !== "undefined") {
-      navigator.clipboard.writeText(text);
+  const copyToClipboard = async (text: string, type: "portal" | "registration" | "login") => {
+    if (typeof window === "undefined") return;
+    try {
+      await navigator.clipboard.writeText(text);
       if (type === "portal") {
         setCopiedPortal(true);
         setTimeout(() => setCopiedPortal(false), 2000);
+      } else if (type === "registration") {
+        setCopiedRegistration(true);
+        setTimeout(() => setCopiedRegistration(false), 2000);
       } else {
         setCopiedLogin(true);
         setTimeout(() => setCopiedLogin(false), 2000);
       }
+    } catch {
+      window.alert("Clipboard access is unavailable. Select and copy the link manually.");
     }
   };
 
@@ -139,7 +147,19 @@ export default function CreateEventPage() {
               </p>
             </div>
 
-            {/* Link 2: Role-Specific Login Terminal Link */}
+            {/* Link 2: Participant registration entry link. This is a continuation page; persisted enrollment is not yet available. */}
+          <div className="p-4 rounded-2xl border border-amber-500/30 bg-slate-900/90 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold font-mono text-amber-300 uppercase flex items-center gap-1.5">3. Participant registration entry</span>
+              <button onClick={() => void copyToClipboard(registrationUrl, "registration")} className="text-xs text-amber-300 hover:text-white transition flex items-center gap-1 font-mono font-medium">
+                {copiedRegistration ? "✓ Copied!" : "Copy Link"}
+              </button>
+            </div>
+            <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-xs text-amber-200 select-all break-all">{registrationUrl}</div>
+            <p className="text-[11px] text-slate-400">Share as the participant entry point. Account creation and event enrollment are shown as separate steps; this link does not claim a registration has been persisted.</p>
+          </div>
+
+          {/* Link 2: Role-Specific Login Terminal Link */}
             <div className="p-4 rounded-2xl border border-teal-500/30 bg-slate-900/90 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold font-mono text-teal-300 uppercase flex items-center gap-1.5">
