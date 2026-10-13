@@ -79,7 +79,7 @@ export default function CreateEventPage() {
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
   const appBase = `${origin}${basePath}`;
   const portalUrl = createdEvent ? `${appBase}/events/portal?eventId=${encodeURIComponent(createdEvent.id)}` : "";
-  const registrationUrl = createdEvent ? `${appBase}/events/registration-status?eventId=${encodeURIComponent(createdEvent.id)}&state=begin` : "";
+  const registrationUrl = createdEvent ? `${appBase}/events/register?eventId=${encodeURIComponent(createdEvent.id)}` : "";
   const loginUrl = createdEvent ? `${appBase}/events/login?eventId=${encodeURIComponent(createdEvent.id)}` : "";
 
   const copyToClipboard = async (text: string, type: "portal" | "registration" | "login") => {
