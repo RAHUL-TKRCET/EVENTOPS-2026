@@ -391,7 +391,6 @@ export default function DashboardPage() {
 
         {/* Right 1 Col: Quick Control Widgets */}
         <div className="space-y-6">
-      <DemoModeNotice />
           {/* Quick Intelligent Optimizer Status */}
           <div className="p-5 rounded-2xl border border-indigo-500/30 bg-slate-900/80 space-y-3">
             <div className="flex items-center justify-between">
