@@ -128,9 +128,11 @@ export default function EventRegistrationPage() {
               </form>
             )}
             <div className="flex flex-wrap gap-3 border-t border-slate-800 pt-4">
-              <Button variant="outline" onClick={() => router.push(`/register?accountType=PARTICIPANT&eventId=${encodeURIComponent(eventId)}`)}>
-                {registrationOpen ? "Create participant account (not enrollment)" : "Create participant account (does not register you)"}
-              </Button>
+              {!isParticipantSession && (
+                <Button variant="outline" onClick={() => router.push(`/register?accountType=PARTICIPANT&eventId=${encodeURIComponent(eventId)}`)}>
+                  {registrationOpen ? "Create participant account (not enrollment)" : "Create participant account (does not register you)"}
+                </Button>
+              )}
               <Button variant="outline" onClick={() => router.push(`/events/portal?eventId=${encodeURIComponent(eventId)}`)}><ArrowLeft className="mr-2 h-4 w-4" />Event portal</Button>
             </div>
             <p className="text-xs leading-5 text-slate-500">Event ID is only context. Enrollment is confirmed only after an active participant membership is persisted by the backend. Team creation and staff assignment are separate workflows.</p>
