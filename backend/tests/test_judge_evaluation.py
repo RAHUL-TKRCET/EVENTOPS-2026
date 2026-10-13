@@ -1,10 +1,61 @@
 from types import SimpleNamespace
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.api.v1 import evaluation
+from app.core.database import Base
 from app.models.entities import Evaluation, Round, Team, User, Event, Judge, Organization
+
+
+@pytest.fixture
+def persisted_judge_db():
+    """Isolated SQLite database for real SQLAlchemy authorization tests."""
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    db = TestingSession()
+    try:
+        yield db
+    finally:
+        db.close()
+        Base.metadata.drop_all(bind=engine)
+        engine.dispose()
+
+
+def _persisted_event(event_id: str):
+    now = datetime.now(timezone.utc)
+    return Event(
+        id=event_id,
+        name=f"Event {event_id}",
+        type="HACKATHON",
+        status="PUBLISHED",
+        start_date=now + timedelta(days=1),
+        end_date=now + timedelta(days=2),
+        registration_deadline=now + timedelta(hours=12),
+    )
+
+
+def _persisted_judge_user(user_id: str, event_id: str):
+    user = User(
+        id=user_id,
+        name=f"Judge {user_id}",
+        email=f"{user_id}@example.com",
+        password_hash="test-hash-not-used",
+        role="JUDGE",
+        organization_id=None,
+    )
+    user.active_role = "JUDGE"
+    user.active_event_id = event_id
+    return user
 
 
 class FakeQuery:
