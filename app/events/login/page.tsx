@@ -95,6 +95,8 @@ export default function StaticEventLoginPage() {
       setCurrentRole(selectedRole);
       if (selectedRole === "ORGANIZATION_ADMIN") {
         router.push("/dashboard");
+      } else if (selectedRole === "PARTICIPANT") {
+        router.push(`/participant?eventId=${encodeURIComponent(eventId)}`);
       } else {
         router.push(roleOptions.find(option => option.role === selectedRole)?.home || "/dashboard");
       }
