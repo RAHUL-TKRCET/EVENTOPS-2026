@@ -189,7 +189,6 @@ export default function RealTimeControlCenterPage() {
 
         {/* Right 1 Col: Urgent Incidents & Immediate Actions */}
         <div className="space-y-6">
-      <DemoModeNotice />
           <div className="p-5 rounded-2xl border border-rose-500/30 bg-slate-900/80 space-y-4">
             <div className="flex items-center justify-between">
               <span className="font-mono text-xs text-rose-400 font-bold uppercase">
