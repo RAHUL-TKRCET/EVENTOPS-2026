@@ -97,8 +97,8 @@ export default function EventRegistrationPage() {
             <div><h2 className="font-semibold text-white">Sign in to enroll</h2><p className="mt-1 text-sm leading-6 text-slate-400">Use your existing participant account. A successful login alone does not register you; this form submits a separate event registration that the backend verifies and stores.</p></div>
             {!registrationOpen && <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">New registration is unavailable because this event is unpublished, or its registration deadline is missing or has passed.</p>}
             {registrationOpen && <form onSubmit={handleRegister} className="space-y-4">
-              <Input label="Participant email" type="email" autoComplete="email" value={email} onChange={(value) => setEmail(value)} required />
-              <Input label="Password" type="password" autoComplete="current-password" value={password} onChange={(value) => setPassword(value)} required />
+              <Input label="Participant email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+              <Input label="Password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
               <Button type="submit" variant="primary" disabled={busy}>{busy ? "Checking account and registering…" : "Sign in & register for this event"} <ArrowRight className="ml-2 h-4 w-4" /></Button>
             </form>}
             <div className="flex flex-wrap gap-3 border-t border-slate-800 pt-4">
