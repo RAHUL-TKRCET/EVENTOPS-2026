@@ -292,6 +292,7 @@ export default function StaticEventDetailPage() {
           {section !== "settings" && <p className="text-xs text-slate-500">Displayed from the authorized event API response. Changes are available only through implemented backend write endpoints.</p>}
         </section>
       )}
+      {lifecycleNotice && <p role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">{lifecycleNotice}</p>}
       <div className="flex items-center justify-between gap-3">
         <Button variant="outline" size="sm" onClick={() => router.push("/events")}>← Back to Events</Button>
         <Button variant="outline" size="sm" onClick={() => void loadEvent()}>Refresh event</Button>
@@ -308,6 +309,16 @@ export default function StaticEventDetailPage() {
             <p className="text-xs text-slate-400 max-w-2xl mt-1">{event.description || "No description provided."}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
+            {canManageLifecycle && event.status?.toUpperCase() === "DRAFT" && (
+              <>
+                <Button variant="primary" size="sm" disabled={lifecycleBusy} onClick={() => void publishCurrentEvent()}>
+                  {lifecycleBusy ? "Working…" : "Publish event"}
+                </Button>
+                <Button variant="outline" size="sm" disabled={lifecycleBusy} className="border-rose-500/40 text-rose-300 hover:border-rose-400 hover:text-rose-200" onClick={() => void deleteCurrentDraft()}>
+                  Delete draft
+                </Button>
+              </>
+            )}
             <Button variant="outline" size="sm" onClick={() => router.push(`/people?eventId=${encodeURIComponent(event.id)}`)} leftIcon={<UserPlus className="w-3.5 h-3.5 text-sky-400" />}>Manage Staff / Roles</Button>
             <Button variant="primary" size="sm" onClick={() => router.push("/control-center")}>Enter Control Center</Button>
           </div>
