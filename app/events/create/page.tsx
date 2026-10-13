@@ -10,6 +10,11 @@ import { useAppStore } from "@/store";
 import { Calendar, ArrowRight, Layers, Clock, ShieldCheck, Check } from "lucide-react";
 import { EventType } from "@/types";
 
+function toLocalDateTimeInput(date: Date): string {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
 const eventTypes: { value: EventType; label: string }[] = [
   { value: "Hackathon", label: "Hackathon (Flagship Demo)" },
   { value: "College Fest", label: "College Fest / Cultural Summit" },
@@ -39,9 +44,24 @@ export default function CreateEventPage() {
   const [description, setDescription] = useState(
     "36-Hour continuous deep-tech hackathon with AI requirement matching and CP-SAT judge allocation."
   );
-  const [startDate, setStartDate] = useState("2026-10-15T08:00");
-  const [endDate, setEndDate] = useState("2026-10-17T20:00");
-  const [registrationDeadline, setRegistrationDeadline] = useState("2026-10-10T23:59");
+  const [startDate, setStartDate] = useState(() => {
+    const start = new Date();
+    start.setDate(start.getDate() + 7);
+    start.setHours(8, 0, 0, 0);
+    return toLocalDateTimeInput(start);
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const end = new Date();
+    end.setDate(end.getDate() + 9);
+    end.setHours(20, 0, 0, 0);
+    return toLocalDateTimeInput(end);
+  });
+  const [registrationDeadline, setRegistrationDeadline] = useState(() => {
+    const deadline = new Date();
+    deadline.setDate(deadline.getDate() + 5);
+    deadline.setHours(23, 59, 0, 0);
+    return toLocalDateTimeInput(deadline);
+  });
   const [expectedParticipants, setExpectedParticipants] = useState("500");
   const [totalRounds, setTotalRounds] = useState("3");
   const [isLoading, setIsLoading] = useState(false);

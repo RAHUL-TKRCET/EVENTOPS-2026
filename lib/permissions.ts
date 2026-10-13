@@ -336,6 +336,8 @@ export function checkRouteAccess(role: UserRole, pathname: string): { authorized
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset-password") ||
     pathname.startsWith("/verify-otp") ||
+    pathname.startsWith("/events/register") ||
+    pathname.startsWith("/events/registration-status") ||
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/workspace") ||
     pathname.startsWith("/organizations") ||
