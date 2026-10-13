@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { DemoModeNotice } from "@/components/ui/DemoModeNotice";
 import { DataTable, Column } from "@/components/ui/DataTable";
 import { StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -74,6 +75,7 @@ export default function VolunteersPage() {
   if (currentRole === "VOLUNTEER") {
     return (
       <div className="space-y-6">
+      <DemoModeNotice />
         <div className="p-6 rounded-3xl border border-teal-500/20 bg-gradient-to-r from-teal-950/30 via-slate-900 to-slate-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
@@ -274,6 +276,7 @@ export default function VolunteersPage() {
 
   return (
     <div className="space-y-6">
+      <DemoModeNotice />
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold font-mono text-white">Volunteer & Field Staff Operations</h2>

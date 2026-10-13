@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { DemoModeNotice } from "@/components/ui/DemoModeNotice";
 import { KPICard } from "@/components/ui/KPICard";
 import { StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -66,6 +67,7 @@ export default function RealTimeControlCenterPage() {
 
   return (
     <div className="space-y-6">
+      <DemoModeNotice />
       {/* Header Command Deck */}
       <div className="p-6 rounded-2xl border border-rose-500/30 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-2xl">
         <div>

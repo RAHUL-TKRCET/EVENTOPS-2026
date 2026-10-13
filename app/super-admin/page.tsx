@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { DemoModeNotice } from "@/components/ui/DemoModeNotice";
 import { useRouter } from "next/navigation";
 import { KPICard } from "@/components/ui/KPICard";
 import { StatusBadge } from "@/components/ui/Badge";
@@ -25,6 +26,7 @@ export default function SuperAdminDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <DemoModeNotice />
       {/* Super Admin Banner */}
       <div className="p-6 rounded-3xl border border-purple-500/30 bg-gradient-to-r from-purple-950/40 via-slate-900 to-slate-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
