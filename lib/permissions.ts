@@ -66,7 +66,7 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
   EVENT_ADMIN: {
     role: "EVENT_ADMIN",
     label: "Event Admin",
-    portalPath: "/events/detail",
+    portalPath: "/dashboard",
     description: "End-to-end event operations, scheduling, teams, and oversight",
     badge: "Director of Ops",
     color: "text-sky-400 bg-sky-500/10 border-sky-500/30",
@@ -82,7 +82,7 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
   COORDINATOR: {
     role: "COORDINATOR",
     label: "Coordinator",
-    portalPath: "/control-center",
+    portalPath: "/dashboard",
     description: "Live floor management, attendance monitoring, and rapid resolution",
     badge: "Floor Lead",
     color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
