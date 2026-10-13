@@ -46,20 +46,26 @@ export default function RegisterPage() {
         role,
         ...(isOrganizationOwner ? { organizationName } : {}),
       });
-      setCurrentUser(res.user);
-      setCurrentRole(res.user.role);
       if (isOrganizationOwner) {
+        setCurrentUser(res.user);
+        setCurrentRole(res.user.role);
         router.push("/dashboard");
       } else if (eventId) {
-        // Attempt the event-scoped membership write after account creation. If the
-        // event is closed/unavailable, preserve the account and show an honest retry state.
+        // Attempt enrollment with the scoped session returned by the backend.
+        // If the event is closed/unavailable, preserve account creation and offer retry.
         try {
-          await authApi.registerForEvent(eventId);
+          const enrollment = await authApi.registerForEvent(eventId);
+          setCurrentUser(enrollment.session.user);
+          setCurrentRole(enrollment.session.user.role);
           router.push(`/events/registration-status?eventId=${encodeURIComponent(eventId)}&state=registered`);
         } catch {
+          setCurrentUser(res.user);
+          setCurrentRole(res.user.role);
           router.push(`/events/registration-status?eventId=${encodeURIComponent(eventId)}&state=account-created`);
         }
       } else {
+        setCurrentUser(res.user);
+        setCurrentRole(res.user.role);
         router.push("/participant");
       }
     } catch (error) {
