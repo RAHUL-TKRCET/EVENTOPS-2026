@@ -321,6 +321,23 @@ def test_publish_and_delete_require_authentication_and_scope(client):
 
     token, _ = _create_org_admin_and_draft(client)
     _, target_id = _create_org_admin_and_draft(client)
+    participant = client.post("/api/v1/auth/register", json={
+        "name": "Lifecycle Participant",
+        "email": f"lifecycle-participant-{uuid.uuid4().hex[:8]}@example.com",
+        "password": "A-strong-test-password-2026",
+        "role": "PARTICIPANT",
+    })
+    assert participant.status_code == 201, participant.text
+    participant_headers = {"Authorization": f"Bearer {participant.json()['accessToken']}"}
+    assert client.post(
+        f"/api/v1/events/{target_id}/publish",
+        headers=participant_headers,
+    ).status_code == 403
+    assert client.delete(
+        f"/api/v1/events/{target_id}",
+        headers=participant_headers,
+    ).status_code == 403
+
     denied_publish = client.post(
         f"/api/v1/events/{target_id}/publish",
         headers={"Authorization": f"Bearer {token}"},
