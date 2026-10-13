@@ -82,7 +82,7 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
   COORDINATOR: {
     role: "COORDINATOR",
     label: "Coordinator",
-    portalPath: "/dashboard",
+    portalPath: "/control-center",
     description: "Live floor management, attendance monitoring, and rapid resolution",
     badge: "Floor Lead",
     color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
