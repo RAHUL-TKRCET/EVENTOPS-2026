@@ -111,7 +111,7 @@ export default function CreateEventPage() {
 
           <div className="space-y-1">
             <span className="font-mono text-xs uppercase px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-bold">
-              EVENT CREATED & REGISTERED IN POSTGRESQL
+              EVENT CREATED
             </span>
             <h1 className="text-2xl sm:text-3xl font-bold font-mono text-white mt-2">
               {createdEvent.name}
@@ -147,7 +147,7 @@ export default function CreateEventPage() {
               </p>
             </div>
 
-            {/* Link 2: Participant registration entry link. This is a continuation page; persisted enrollment is not yet available. */}
+            {/* Link 2: Participant registration entry link. */}
           <div className="p-4 rounded-2xl border border-amber-500/30 bg-slate-900/90 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold font-mono text-amber-300 uppercase flex items-center gap-1.5">3. Participant registration entry</span>
@@ -163,7 +163,7 @@ export default function CreateEventPage() {
             <div className="p-4 rounded-2xl border border-teal-500/30 bg-slate-900/90 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold font-mono text-teal-300 uppercase flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5" /> 2. Role-Specific Login Terminal
+                  <ShieldCheck className="w-3.5 h-3.5" /> 3. Role-Specific Login Terminal
                 </span>
                 <button
                   onClick={() => copyToClipboard(loginUrl, "login")}

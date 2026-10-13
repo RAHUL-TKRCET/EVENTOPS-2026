@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { DemoModeNotice } from "@/components/ui/DemoModeNotice";
 import { useRouter } from "next/navigation";
 import { KPICard } from "@/components/ui/KPICard";
 import { StatusBadge } from "@/components/ui/Badge";
@@ -30,6 +31,7 @@ export default function ResourceManagerDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <DemoModeNotice />
       {/* Header */}
       <div className="p-6 rounded-3xl border border-rose-500/20 bg-gradient-to-r from-rose-950/30 via-slate-900 to-slate-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
