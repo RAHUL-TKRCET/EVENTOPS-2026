@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from datetime import datetime, timedelta, timezone
@@ -8,6 +9,54 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.v1 import evaluation
+from app.core.database import Base
+from app.models.entities import Evaluation, Round, Team, User, Event, Judge, Organization
+
+
+@pytest.fixture
+def persisted_judge_db():
+    """Isolated SQLite database for real SQLAlchemy authorization tests."""
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    TestingSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    db = TestingSession()
+    try:
+        yield db
+    finally:
+        db.close()
+        Base.metadata.drop_all(bind=engine)
+        engine.dispose()
+
+
+def _persisted_event(event_id: str):
+    now = datetime.now(timezone.utc)
+    return Event(
+        id=event_id,
+        name=f"Event {event_id}",
+        type="HACKATHON",
+        status="PUBLISHED",
+        start_date=now + timedelta(days=1),
+        end_date=now + timedelta(days=2),
+        registration_deadline=now + timedelta(hours=12),
+    )
+
+
+def _persisted_judge_user(user_id: str, event_id: str):
+    user = User(
+        id=user_id,
+        name=f"Judge {user_id}",
+        email=f"{user_id}@example.com",
+        password_hash="test-hash-not-used",
+        role="JUDGE",
+        organization_id=None,
+    )
+    user.active_role = "JUDGE"
+    user.active_event_id = event_id
+    return user
 from app.models.entities import Evaluation, Round, Team
 from app.models.entities import User, Base, Event, Judge
 
@@ -155,6 +204,108 @@ def test_judge_history_rejects_a_different_event(monkeypatch):
 
 
 
+def test_team_evaluations_for_judge_return_only_own_scorecards(persisted_judge_db):
+    db = persisted_judge_db
+    user = _persisted_judge_user("user-a", "evt-a")
+    event = _persisted_event("evt-a")
+    team = Team(
+        id="team-shared", event_id="evt-a", name="Shared Team",
+        lead_name="Lead", lead_email="lead@example.com",
+        project_title="Shared Project", project_domain="AI",
+        qr_code_token="test-shared", assigned_judges=["judge-a", "judge-b"],
+    )
+    round_record = Round(
+        id="round-a", event_id="evt-a", name="Round A", round_order=1,
+        status="ACTIVE",
+        start_time=datetime.now(timezone.utc) + timedelta(hours=1),
+        end_time=datetime.now(timezone.utc) + timedelta(hours=2),
+    )
+    judges = [
+        Judge(id="judge-a", event_id="evt-a", user_id=user.id, name=user.name, email=user.email, assigned_teams=["team-shared"]),
+        Judge(id="judge-b", event_id="evt-a", user_id="user-b", name="Judge B", email="judge-b@example.com", assigned_teams=["team-shared"]),
+    ]
+    records = [
+        Evaluation(id="eval-a", event_id="evt-a", round_id="round-a", judge_id="judge-a", team_id="team-shared", scores={"criterion-1": 8.0}, total_score=8.0, feedback="A private", strengths="", areas_to_improve="", status="SUBMITTED"),
+        Evaluation(id="eval-b", event_id="evt-a", round_id="round-a", judge_id="judge-b", team_id="team-shared", scores={"criterion-1": 3.0}, total_score=3.0, feedback="B private", strengths="", areas_to_improve="", status="SUBMITTED"),
+    ]
+    db.add_all([event, user, team, round_record, *judges, *records])
+    db.flush()
+
+    result = evaluation.get_team_evaluations(team_id="team-shared", db=db, current_user=user)
+
+    assert [item.id for item in result] == ["eval-a"]
+    assert result[0].judgeId == "judge-a"
+    assert result[0].feedback == "A private"
+
+
+@pytest.mark.parametrize("role", ["PARTICIPANT", "VOLUNTEER", "COORDINATOR", "TECHNICAL_STAFF", "RESOURCE_MANAGER"])
+def test_non_admin_event_roles_cannot_read_all_team_scorecards(persisted_judge_db, role):
+    db = persisted_judge_db
+    user = User(
+        id=f"user-{role.lower()}",
+        name=f"{role} user",
+        email=f"{role.lower()}@example.com",
+        password_hash="test-hash-not-used",
+        role=role,
+        organization_id=None,
+    )
+    user.active_role = role
+    user.active_event_id = "evt-a"
+    user.active_organization_id = None
+    event = _persisted_event("evt-a")
+    team = Team(
+        id="team-private", event_id="evt-a", name="Private Team",
+        lead_name="Lead", lead_email="lead@example.com",
+        project_title="Private Project", project_domain="AI",
+        qr_code_token="test-private", assigned_judges=[],
+    )
+    db.add_all([event, user, team])
+    db.flush()
+
+    with pytest.raises(HTTPException) as error:
+        evaluation.get_team_evaluations(team_id="team-private", db=db, current_user=user)
+
+    assert error.value.status_code == 403
+
+
+def test_org_admin_in_scope_can_read_team_scorecards(persisted_judge_db):
+    db = persisted_judge_db
+    now = datetime.now(timezone.utc)
+    org = Organization(
+        id="org-a", name="Test Org", type="INSTITUTION", country="IN", city="Hyderabad",
+        owner_id="user-admin", contact_email="admin@example.com",
+    )
+    user = User(
+        id="user-admin", name="Admin", email="admin@example.com",
+        password_hash="test-hash-not-used", role="ORGANIZATION_ADMIN", organization_id="org-a",
+    )
+    user.active_role = "ORGANIZATION_ADMIN"
+    user.active_event_id = None
+    user.active_organization_id = "org-a"
+    event = Event(
+        id="evt-a", organization_id="org-a", name="Event A", type="HACKATHON", status="PUBLISHED",
+        start_date=now + timedelta(days=1), end_date=now + timedelta(days=2),
+        registration_deadline=now + timedelta(hours=12),
+    )
+    team = Team(
+        id="team-a", event_id="evt-a", name="Team A",
+        lead_name="Lead", lead_email="lead@example.com",
+        project_title="Project A", project_domain="AI", qr_code_token="test-admin",
+    )
+    records = [
+        Evaluation(id="eval-a", event_id="evt-a", round_id="round-a", judge_id="judge-a", team_id="team-a", scores={"a": 1.0}, total_score=1.0, feedback="A", strengths="", areas_to_improve="", status="SUBMITTED"),
+        Evaluation(id="eval-b", event_id="evt-a", round_id="round-a", judge_id="judge-b", team_id="team-a", scores={"b": 2.0}, total_score=2.0, feedback="B", strengths="", areas_to_improve="", status="SUBMITTED"),
+    ]
+    round_record = Round(
+        id="round-a", event_id="evt-a", name="Round A", round_order=1,
+        start_time=now + timedelta(hours=1), end_time=now + timedelta(hours=2),
+    )
+    db.add_all([org,user,event,team,round_record,*records])
+    db.flush()
+
+    result = evaluation.get_team_evaluations(team_id="team-a", db=db, current_user=user)
+
+    assert {item.id for item in result} == {"eval-a", "eval-b"}
 def test_assigned_judge_resolver_uses_persisted_judge_row():
     """The real resolver must match both the authenticated user and active event."""
     from app.api.v1.evaluation import _assigned_judge
