@@ -138,17 +138,28 @@ def get_team_evaluations(
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:
         raise HTTPException(status_code=404, detail="Team not found.")
-    if _active_role(current_user) == "JUDGE":
+    role = _active_role(current_user)
+    query = db.query(Evaluation).filter(
+        Evaluation.event_id == team.event_id,
+        Evaluation.team_id == team.id,
+    )
+
+    if role == "JUDGE":
         judge = _assigned_judge(db, current_user, team.event_id)
         if not _judge_assigned_to_team(judge, team):
             raise HTTPException(status_code=403, detail="This judge is not assigned to the selected team.")
+        # An assigned judge may review only their own private scorecard. Other
+        # judges' feedback and unfinished evaluations must remain private.
+        query = query.filter(Evaluation.judge_id == judge.id)
     else:
+        if role not in {"ORGANIZATION_ADMIN", "EVENT_ADMIN", "SUPER_ADMIN"}:
+            raise HTTPException(status_code=403, detail="This role cannot view team scorecards.")
         event = db.query(Event).filter(Event.id == team.event_id).first()
         if not event:
             raise HTTPException(status_code=404, detail="Event not found.")
         require_event_scope(event, current_user)
 
-    records = db.query(Evaluation).filter(Evaluation.team_id == team.id).all()
+    records = query.all()
     return [_evaluation_response(item, team) for item in records]
 
 
