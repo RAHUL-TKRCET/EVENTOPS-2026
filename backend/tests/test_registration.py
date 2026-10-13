@@ -325,3 +325,38 @@ def test_event_registration_status_and_list_only_show_own_memberships(client):
     listed = client.get("/api/v1/auth/event-registrations", headers=headers)
     assert listed.status_code == 200
     assert [row["eventId"] for row in listed.json()] == [event_a]
+
+
+def test_event_registration_rejects_cross_event_context_when_existing_member_token_used(client):
+    _, token, user_id, event_a = _create_participant_and_event(client)
+    _, _, _, event_b = _create_participant_and_event(client)
+    created = client.post(
+        "/api/v1/auth/event-registration",
+        json={"eventId": event_a},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert created.status_code == 201, created.text
+    scoped_token = created.json()["session"]["accessToken"]
+    # A scoped session may not inspect or enroll against a different event ID.
+    response = client.get(
+        f"/api/v1/auth/event-registration/{event_b}",
+        headers={"Authorization": f"Bearer {scoped_token}"},
+    )
+    assert response.status_code == 403
+
+def test_event_registration_status_does_not_leak_another_participants_record(client):
+    _, token_a, _, event_id = _create_participant_and_event(client)
+    _, token_b, _, _ = _create_participant_and_event(client)
+    created = client.post(
+        "/api/v1/auth/event-registration",
+        json={"eventId": event_id},
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+    assert created.status_code == 201, created.text
+    response = client.get(
+        f"/api/v1/auth/event-registration/{event_id}",
+        headers={"Authorization": f"Bearer {token_b}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["registered"] is False
+    assert response.json()["registrationId"] is None
