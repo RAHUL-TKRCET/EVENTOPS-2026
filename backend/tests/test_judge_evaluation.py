@@ -148,3 +148,49 @@ def test_judge_history_rejects_a_different_event(monkeypatch):
 
     assert error.value.status_code == 403
     assert db.queried_models == []
+
+
+
+def test_assigned_judge_resolver_uses_persisted_judge_row():
+    """The real resolver must match both the authenticated user and active event."""
+    from app.api.v1.evaluation import _assigned_judge
+
+    user = _judge_user()
+    db = FakeDB([SimpleNamespace(id="judge-db-id", user_id=user.id, event_id="evt-a")])
+
+    resolved = _assigned_judge(db, user, "evt-a")
+
+    assert resolved.id == "judge-db-id"
+    assert db.queried_models == [evaluation.Judge]
+
+
+@pytest.mark.parametrize("role,event_id", [
+    ("PARTICIPANT", "evt-a"),
+    ("EVENT_ADMIN", "evt-a"),
+    ("JUDGE", "evt-b"),
+])
+def test_assigned_judge_resolver_rejects_wrong_role_or_event(role, event_id):
+    from app.api.v1.evaluation import _assigned_judge
+
+    user = _judge_user()
+    user.active_role = role
+    db = FakeDB([])
+
+    with pytest.raises(HTTPException) as error:
+        _assigned_judge(db, user, event_id)
+
+    assert error.value.status_code == 403
+    assert db.queried_models == []
+
+
+def test_assigned_judge_resolver_rejects_missing_persisted_assignment():
+    from app.api.v1.evaluation import _assigned_judge
+
+    user = _judge_user()
+    db = FakeDB([None])
+
+    with pytest.raises(HTTPException) as error:
+        _assigned_judge(db, user, "evt-a")
+
+    assert error.value.status_code == 403
+    assert db.queried_models == [evaluation.Judge]
