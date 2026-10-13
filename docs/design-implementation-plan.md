@@ -6,7 +6,7 @@ Status: proposed; design and documentation only. No application code or database
 
 1. An organization head visits the public EVENTOPS website and registers or signs in to their organization-owner account.
 2. After verification, the account opens the Super Admin / organization workspace, where it can create and configure events within its authorized organization scope.
-3. Event creation produces one canonical, shareable event URL.
+3. Event creation produces one canonical, shareable static-safe event URL (`/events/portal?eventId=...` on GitHub Pages).
 4. The event URL opens a shared event portal with approved event details and role-login options enabled for that event.
 5. Every role uses the same link. Choosing a role is only a request; the backend must verify identity, active event membership, role assignment, account state, and permission before granting access.
 6. Successful authentication routes the user to the dashboard for the verified role and event context.
@@ -80,9 +80,11 @@ Do not infer permissions from dashboard route names. Confirm the matrix before i
 
 ## 6. Event portal and session flow
 
-Canonical intended link: https://rahul-tkrcet.github.io/EVENTOPS-2026/events/{slug}. The frontend must verify that direct navigation and refresh work under GitHub Pages static-export constraints.
+**Canonical static-host link contract (approved for this plan):** use the deployed query-based portal URL:
+`https://rahul-tkrcet.github.io/EVENTOPS-2026/events/portal?eventId=<event-id>`.
+Generate the URL through the shared base-path-aware builder; never generate `/events/{slug}` as the only shareable URL under GitHub Pages `output: "export"`, because arbitrary post-deployment event IDs do not have pre-generated HTML pages. Existing dynamic-style URLs may remain compatibility aliases only where the app can redirect them without claiming that every arbitrary ID is a statically generated route. Direct open, refresh, copied links, missing IDs, and unknown IDs must be tested against the deployed static site.
 
-Public event lookup returns only approved event information and enabled role options. It must not reveal private member rosters, judge assignments, internal tokens, draft configuration, or unreleased results.
+Public event lookup returns only approved event information and explicit registration availability. It must not reveal private member rosters, judge assignments, internal tokens, draft configuration, or unreleased results. The portal must not infer availability solely from the URL or from a frontend constant.
 
 The login submission carries event slug, email, password, and requested role. The backend checks all four against authoritative persisted state. A role selector never grants the selected role. Avoid exposing an unauthenticated email lookup that reveals which roles a person has. A forged role or unassigned user must fail.
 
