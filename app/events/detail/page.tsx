@@ -124,6 +124,7 @@ export default function StaticEventDetailPage() {
   const [copiedLogin, setCopiedLogin] = useState(false);
   const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [lifecycleNotice, setLifecycleNotice] = useState("");
+  const [lifecycleError, setLifecycleError] = useState<ApiFailure | null>(null);
 
   const loadEvent = useCallback(async () => {
     setIsLoading(true);
@@ -191,13 +192,13 @@ export default function StaticEventDetailPage() {
     if (!window.confirm(`Publish "${event.name}"? The public portal will show the published event, and registration may open if its deadline is still in the future.`)) return;
     setLifecycleBusy(true);
     setLifecycleNotice("");
-    setError(null);
+    setLifecycleError(null);
     try {
       const updated = await eventsApi.publish(event.id);
       setEvent(updated);
       setLifecycleNotice("Event published successfully. The status has been saved by the backend.");
     } catch (publishError) {
-      setError(classifyFailure(publishError));
+      setLifecycleError(classifyFailure(publishError));
     } finally {
       setLifecycleBusy(false);
     }
@@ -208,12 +209,12 @@ export default function StaticEventDetailPage() {
     if (!window.confirm(`Remove the draft "${event.name}" permanently? This cannot be undone. Drafts with linked records will be blocked by the backend.`)) return;
     setLifecycleBusy(true);
     setLifecycleNotice("");
-    setError(null);
+    setLifecycleError(null);
     try {
       await eventsApi.deleteDraft(event.id);
       router.push("/events");
     } catch (deleteError) {
-      setError(classifyFailure(deleteError));
+      setLifecycleError(classifyFailure(deleteError));
       setLifecycleBusy(false);
     }
   };
@@ -293,6 +294,7 @@ export default function StaticEventDetailPage() {
         </section>
       )}
       {lifecycleNotice && <p role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-200">{lifecycleNotice}</p>}
+      {lifecycleError && <p role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">{lifecycleError.message}</p>}
       <div className="flex items-center justify-between gap-3">
         <Button variant="outline" size="sm" onClick={() => router.push("/events")}>← Back to Events</Button>
         <Button variant="outline" size="sm" onClick={() => void loadEvent()}>Refresh event</Button>
