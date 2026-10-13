@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Input, Textarea } from "@/components/ui/Input";
+import { useAppStore } from "@/store";
 
 type EventMetrics = {
   totalTeams: number;
@@ -111,6 +112,7 @@ export default function StaticEventDetailPage() {
   const router = useRouter();
   const eventId = (searchParams.get("eventId") || "").trim();
   const section = (searchParams.get("section") || "").trim().toLowerCase();
+  const { currentRole } = useAppStore();
   const [event, setEvent] = useState<EventItem | null>(null);
   const [metrics, setMetrics] = useState<EventMetrics | null>(null);
   const [members, setMembers] = useState<EventMember[] | null>(null);
@@ -120,6 +122,8 @@ export default function StaticEventDetailPage() {
   const [membersUnavailable, setMembersUnavailable] = useState(false);
   const [copiedPortal, setCopiedPortal] = useState(false);
   const [copiedLogin, setCopiedLogin] = useState(false);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  const [lifecycleNotice, setLifecycleNotice] = useState("");
 
   const loadEvent = useCallback(async () => {
     setIsLoading(true);
