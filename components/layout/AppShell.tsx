@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Lock } from "lucide-react";
 
-import { checkRouteAccess } from "@/lib/permissions";
+import { checkRouteAccess, getRoleHomeRoute } from "@/lib/permissions";
 import { authApi } from "@/lib/api/auth";
 import { AccessDenied } from "@/components/ui/AccessDenied";
 
@@ -33,7 +33,7 @@ function isOrganizationManagementRoute(pathname: string): boolean {
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const pathname = usePathname();
   const router = useRouter();
-  const { isMobileSidebarOpen, setMobileSidebarOpen, theme, currentRole, currentUser, setCurrentUser, logout } = useAppStore();
+  const { isMobileSidebarOpen, setMobileSidebarOpen, theme, currentRole, currentUser, currentEvent, setCurrentUser, logout } = useAppStore();
   const [sessionResolved, setSessionResolved] = useState(false);
   // Hide event-operations chrome only on the Organization Admin landing page.
   const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && pathname === "/dashboard";
@@ -41,16 +41,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   // Public pages that do not require an active session
   const isPublicPage =
     pathname === "/" ||
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/register") ||
-    pathname.startsWith("/forgot-password") ||
-    pathname.startsWith("/reset-password") ||
-    pathname.startsWith("/verify-otp") ||
-    pathname.startsWith("/events/register") ||
-    pathname.startsWith("/events/registration-status") ||
-    pathname.includes("/portal") ||
-    pathname.startsWith("/invitations/accept") ||
-    pathname.endsWith("/login");
+    ["/login", "/register", "/forgot-password", "/reset-password", "/verify-otp", "/events/register", "/events/registration-status", "/events/portal", "/events/login", "/invitations/accept"].some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)) ||
+    /^\/events\/[^/]+\/(portal|login)$/.test(pathname);
 
   // Zustand starts empty on a hard refresh. Rehydrate only from a persisted
   // token validated by the backend; never recreate identity from demo data.
@@ -82,6 +74,17 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       .finally(() => { if (active) setSessionResolved(true); });
     return () => { active = false; };
   }, [currentUser, setCurrentUser, logout]);
+
+  useEffect(() => {
+    // The shared dashboard is now an Organization Admin landing page only.
+    // Redirect legacy bookmarks into the home route for the authenticated role.
+    if (sessionResolved && currentUser && pathname === "/dashboard" && currentRole !== "ORGANIZATION_ADMIN") {
+      const target = currentRole === "EVENT_ADMIN" && currentEvent?.id
+        ? `/events/detail?eventId=${encodeURIComponent(currentEvent.id)}`
+        : getRoleHomeRoute(currentRole);
+      router.replace(target);
+    }
+  }, [sessionResolved, currentUser, pathname, currentRole, currentEvent?.id, router]);
 
   useEffect(() => {
     // Ensure dark class is synchronized on html
@@ -138,6 +141,10 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   // Check RBAC permissions for current route
   const accessCheck = checkRouteAccess(currentRole, pathname);
+  const redirectingLegacyDashboard = pathname === "/dashboard" && currentRole !== "ORGANIZATION_ADMIN";
+  if (redirectingLegacyDashboard) {
+    return <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6"><p role="status" className="text-sm text-slate-400">Opening your role-specific workspace…</p></main>;
+  }
 
   return (
     <div className="min-h-screen flex bg-slate-950 text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
