@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token
 from app.models.entities import User, OrganizationMembership, Organization, Event, EventMember, AuditLog
-from app.schemas.auth import LoginRequest, EventLoginRequest, RegisterRequest, TokenResponse, UserResponse, RoleSwitchRequest, RoleSwitchResponse, VerifyInviteRequest, VerifyInviteResponse, EventRegistrationRequest, EventRegistrationStatusResponse, EventRegistrationResult, EventRegistrationSummary
+from app.schemas.auth import LoginRequest, EventLoginRequest, RegisterRequest, ProfileUpdateRequest, TokenResponse, UserResponse, RoleSwitchRequest, RoleSwitchResponse, VerifyInviteRequest, VerifyInviteResponse, EventRegistrationRequest, EventRegistrationStatusResponse, EventRegistrationResult, EventRegistrationSummary
 from app.api.deps import get_current_user, require_roles
 
 router = APIRouter()
@@ -21,7 +21,7 @@ def _token_response(user: User, role: str, organization_id: str | None, event_id
     access_token = create_access_token(subject=user.id, claims=claims)
     refresh_token = create_refresh_token(subject=user.id)
     return TokenResponse(
-        user=UserResponse(id=user.id, name=user.name, email=user.email, role=role, organizationId=organization_id, createdAt=user.created_at.isoformat() if user.created_at else None),
+        user=UserResponse(id=user.id, name=user.name, email=user.email, phone=user.phone, role=role, organizationId=organization_id, createdAt=user.created_at.isoformat() if user.created_at else None),
         token=access_token, accessToken=access_token, refreshToken=refresh_token,
         expiresIn=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
@@ -68,6 +68,59 @@ def event_login(payload: EventLoginRequest, db: Session = Depends(get_db)):
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
     return _token_response(user, member.role, event.organization_id, event.id)
+
+
+@router.get("/me", response_model=UserResponse)
+def get_me(current_user: User = Depends(get_current_user)):
+    return UserResponse(
+        id=current_user.id,
+        name=current_user.name,
+        email=current_user.email,
+        phone=current_user.phone,
+        role=getattr(current_user, "active_role", None) or current_user.role,
+        organizationId=current_user.organization_id,
+        createdAt=current_user.created_at.isoformat() if current_user.created_at else None,
+    )
+
+
+@router.patch("/me", response_model=UserResponse)
+def update_me(
+    payload: ProfileUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Persist safe self-service profile fields without allowing role/org changes."""
+    email = str(payload.email).strip().lower()
+    duplicate = db.query(User).filter(User.email.ilike(email), User.id != current_user.id).first()
+    if duplicate:
+        raise HTTPException(status_code=409, detail="An account with this email address already exists.")
+    current_user.name = payload.name.strip()
+    current_user.email = email
+    current_user.phone = payload.phone.strip() if payload.phone else None
+    try:
+        db.add(AuditLog(
+            id=f"audit-{uuid.uuid4().hex[:12]}",
+            event_id=getattr(current_user, "active_event_id", None),
+            user_id=current_user.id,
+            user_role=getattr(current_user, "active_role", None) or current_user.role,
+            action="PROFILE_UPDATED",
+            resource_type="User",
+            resource_id=current_user.id,
+        ))
+        db.commit()
+        db.refresh(current_user)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Profile could not be updated because the email address is already in use.") from exc
+    return UserResponse(
+        id=current_user.id,
+        name=current_user.name,
+        email=current_user.email,
+        phone=current_user.phone,
+        role=getattr(current_user, "active_role", None) or current_user.role,
+        organizationId=current_user.organization_id,
+        createdAt=current_user.created_at.isoformat() if current_user.created_at else None,
+    )
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -122,11 +175,6 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 
 def _require_participant_scope(user: User, requested_event_id: str | None = None) -> None:
-    """Only a participant account may use self-service enrollment.
-
-    An event-scoped token is bound to one event; it cannot be used to query or
-    register for another event by editing a query string or request body.
-    """
     active_role = getattr(user, "active_role", user.role)
     if active_role != "PARTICIPANT" or user.role != "PARTICIPANT":
         raise HTTPException(status_code=403, detail="Participant registration requires a participant account.")
@@ -138,199 +186,55 @@ def _require_participant_scope(user: User, requested_event_id: str | None = None
 def _registration_member(db: Session, event_id: str, user: User) -> EventMember | None:
     return (
         db.query(EventMember)
-        .filter(
-            EventMember.event_id == event_id,
-            EventMember.user_id == user.id,
-            EventMember.role == "PARTICIPANT",
-        )
-        .order_by(EventMember.created_at.asc())
-        .first()
+        .filter(EventMember.event_id == event_id, EventMember.user_id == user.id, EventMember.role == "PARTICIPANT")
+        .order_by(EventMember.created_at.asc()).first()
     )
 
 
 def _registration_summary(member: EventMember, event: Event) -> EventRegistrationSummary:
-    return EventRegistrationSummary(
-        eventId=event.id,
-        eventName=event.name,
-        status=member.status or "ACTIVE",
-        createdAt=member.created_at.isoformat() if member.created_at else None,
-    )
+    return EventRegistrationSummary(eventId=event.id, eventName=event.name, status=member.status or "ACTIVE", createdAt=member.created_at.isoformat() if member.created_at else None)
 
 
 @router.get("/event-registrations", response_model=List[EventRegistrationSummary])
-def list_my_event_registrations(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """List only this participant's own event registrations."""
+def list_my_event_registrations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_participant_scope(current_user)
-    query = (
-        db.query(EventMember, Event)
-        .join(Event, Event.id == EventMember.event_id)
-        .filter(EventMember.user_id == current_user.id, EventMember.role == "PARTICIPANT")
-    )
+    query = db.query(EventMember, Event).join(Event, Event.id == EventMember.event_id).filter(EventMember.user_id == current_user.id, EventMember.role == "PARTICIPANT")
     active_event_id = getattr(current_user, "active_event_id", None)
-    if active_event_id:
-        query = query.filter(Event.id == active_event_id)
+    if active_event_id: query = query.filter(Event.id == active_event_id)
     rows = query.order_by(EventMember.created_at.desc()).all()
     return [_registration_summary(member, event) for member, event in rows]
 
 
 @router.get("/event-registration/{event_id}", response_model=EventRegistrationStatusResponse)
-def get_my_event_registration(
-    event_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Return only the current user's registration status for one event."""
+def get_my_event_registration(event_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_participant_scope(current_user, event_id)
     event = db.query(Event).filter(Event.id == event_id).first()
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found.")
+    if not event: raise HTTPException(status_code=404, detail="Event not found.")
     member = _registration_member(db, event_id, current_user)
     active_member = member is not None and (member.status or "").upper() == "ACTIVE"
-    return EventRegistrationStatusResponse(
-        eventId=event.id,
-        eventName=event.name,
-        registered=bool(active_member),
-        registrationId=member.id if member else None,
-        status=member.status if member else None,
-        createdAt=member.created_at.isoformat() if member and member.created_at else None,
-    )
+    return EventRegistrationStatusResponse(eventId=event.id, eventName=event.name, registered=bool(active_member), registrationId=member.id if member else None, status=member.status if member else None, createdAt=member.created_at.isoformat() if member and member.created_at else None)
 
 
 @router.post("/event-registration", response_model=EventRegistrationResult, status_code=status.HTTP_201_CREATED)
-def register_for_event(
-    payload: EventRegistrationRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Persist one participant enrollment using the existing event_members model.
-
-    The event row is locked before checking existing enrollment so retries are
-    idempotent in PostgreSQL. A future uniqueness constraint should be added
-    only through the separately reviewed migration/security gate.
-    """
+def register_for_event(payload: EventRegistrationRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_participant_scope(current_user, payload.eventId)
-    event = (
-        db.query(Event)
-        .filter(Event.id == payload.eventId)
-        .with_for_update()
-        .first()
-    )
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found.")
-
+    event = db.query(Event).filter(Event.id == payload.eventId).with_for_update().first()
+    if not event: raise HTTPException(status_code=404, detail="Event not found.")
     member = _registration_member(db, event.id, current_user)
     if member:
-        if (member.status or "").upper() != "ACTIVE":
-            raise HTTPException(status_code=403, detail="This event registration is not active. Contact the event organizer.")
-        # Retries and repeated clicks return the existing persisted registration.
+        if (member.status or "").upper() != "ACTIVE": raise HTTPException(status_code=403, detail="This event registration is not active. Contact the event organizer.")
         session = _token_response(current_user, "PARTICIPANT", event.organization_id, event.id)
-        return EventRegistrationResult(
-            eventId=event.id,
-            eventName=event.name,
-            registrationId=member.id,
-            status=member.status or "ACTIVE",
-            createdAt=member.created_at.isoformat() if member.created_at else None,
-            session=session,
-        )
-
-    # Do not silently claim or link an organizer-created roster row by matching
-    # email alone. A staff-managed record must be explicitly reconciled.
-    unlinked = db.query(EventMember).filter(
-        EventMember.event_id == event.id,
-        EventMember.user_id.is_(None),
-        EventMember.role == "PARTICIPANT",
-        EventMember.email.ilike(current_user.email),
-    ).first()
-    if unlinked:
-        raise HTTPException(status_code=409, detail="An unlinked participant record already exists for this event. Contact the organizer to verify and link it.")
-
+        return EventRegistrationResult(eventId=event.id, eventName=event.name, registrationId=member.id, status=member.status or "ACTIVE", createdAt=member.created_at.isoformat() if member.created_at else None, session=session)
+    unlinked = db.query(EventMember).filter(EventMember.event_id == event.id, EventMember.user_id.is_(None), EventMember.role == "PARTICIPANT", EventMember.email.ilike(current_user.email)).first()
+    if unlinked: raise HTTPException(status_code=409, detail="An unlinked participant record already exists for this event. Contact the organizer to verify and link it.")
     now = datetime.now(timezone.utc)
     deadline = event.registration_deadline
-    if deadline and deadline.tzinfo is None:
-        deadline = deadline.replace(tzinfo=timezone.utc)
-    if (event.status or "").upper() != "PUBLISHED":
-        raise HTTPException(status_code=409, detail="This event is not published for participant registration.")
-    if not deadline or deadline <= now:
-        raise HTTPException(status_code=409, detail="The participant registration deadline has passed or is not configured.")
-
-    member = EventMember(
-        id=f"mem-{uuid.uuid4().hex[:12]}",
-        event_id=event.id,
-        user_id=current_user.id,
-        name=current_user.name,
-        email=current_user.email,
-        role="PARTICIPANT",
-        status="ACTIVE",
-        added_by=current_user.id,
-    )
+    if deadline and deadline.tzinfo is None: deadline = deadline.replace(tzinfo=timezone.utc)
+    if (event.status or "").upper() != "PUBLISHED": raise HTTPException(status_code=409, detail="This event is not published for participant registration.")
+    if not deadline or deadline <= now: raise HTTPException(status_code=409, detail="The participant registration deadline has passed or is not configured.")
+    member = EventMember(id=f"mem-{uuid.uuid4().hex[:12]}", event_id=event.id, user_id=current_user.id, name=current_user.name, email=current_user.email, role="PARTICIPANT", status="ACTIVE", joined_at=now)
     db.add(member)
-    try:
-        db.flush()
-        db.add(AuditLog(
-            organization_id=event.organization_id,
-            event_id=event.id,
-            user_id=current_user.id,
-            user_role="PARTICIPANT",
-            action="PARTICIPANT_REGISTERED",
-            resource_type="EventMember",
-            resource_id=member.id,
-            metadata_json={"source": "self-service"},
-        ))
-        db.commit()
-        db.refresh(member)
-    except IntegrityError as exc:
-        db.rollback()
-        # Retry after a concurrent creation: return only the caller's own
-        # active enrollment, never a registration from another account.
-        existing = _registration_member(db, event.id, current_user)
-        if existing and (existing.status or "").upper() == "ACTIVE":
-            session = _token_response(current_user, "PARTICIPANT", event.organization_id, event.id)
-            return EventRegistrationResult(
-                eventId=event.id,
-                eventName=event.name,
-                registrationId=existing.id,
-                status=existing.status or "ACTIVE",
-                createdAt=existing.created_at.isoformat() if existing.created_at else None,
-                session=session,
-            )
-        raise HTTPException(status_code=409, detail="Event registration could not be completed due to a data conflict. Please retry.") from exc
-
+    db.add(AuditLog(id=f"audit-{uuid.uuid4().hex[:12]}", event_id=event.id, user_id=current_user.id, user_role="PARTICIPANT", action="EVENT_REGISTERED", resource_type="EventMember", resource_id=member.id))
+    db.commit()
     session = _token_response(current_user, "PARTICIPANT", event.organization_id, event.id)
-    return EventRegistrationResult(
-        eventId=event.id,
-        eventName=event.name,
-        registrationId=member.id,
-        status=member.status or "ACTIVE",
-        createdAt=member.created_at.isoformat() if member.created_at else None,
-        session=session,
-    )
-
-
-@router.get("/me", response_model=UserResponse)
-def get_current_user_profile(current_user: User = Depends(get_current_user)):
-    return UserResponse(id=current_user.id, name=current_user.name, email=current_user.email, role=current_user.role, organizationId=current_user.organization_id, createdAt=current_user.created_at.isoformat() if current_user.created_at else None)
-
-
-@router.post("/switch-role", response_model=RoleSwitchResponse)
-def switch_active_role(payload: RoleSwitchRequest, current_user: User = Depends(get_current_user)):
-    if current_user.role != "SUPER_ADMIN":
-        raise HTTPException(status_code=403, detail="Only SUPER_ADMIN platform accounts may use this endpoint.")
-    if payload.targetRole != "SUPER_ADMIN":
-        raise HTTPException(status_code=403, detail="Role switching cannot create an event or organization assignment. Use the relevant scoped access workflow.")
-    result = _token_response(current_user, "SUPER_ADMIN", None)
-    return RoleSwitchResponse(message="Platform administrator session renewed.", role="SUPER_ADMIN", token=result.token, accessToken=result.accessToken, refreshToken=result.refreshToken, expiresIn=result.expiresIn)
-
-
-@router.post("/verify-invite", response_model=VerifyInviteResponse)
-def verify_invite(payload: VerifyInviteRequest, db: Session = Depends(get_db)):
-    # Legacy shared codes do not prove assignment or possession by a specific user.
-    return VerifyInviteResponse(valid=False, message="Legacy invitation codes are disabled. Ask an event administrator for a secure event invitation.")
-
-
-@router.get("/users", response_model=List[UserResponse])
-def list_users(db: Session = Depends(get_db), _super: User = Depends(require_roles(["SUPER_ADMIN"]))):
-    users = db.query(User).order_by(User.created_at.desc()).limit(100).all()
-    return [UserResponse(id=u.id, name=u.name, email=u.email, role=u.role, organizationId=u.organization_id, createdAt=u.created_at.isoformat() if u.created_at else None) for u in users]
+    return EventRegistrationResult(eventId=event.id, eventName=event.name, registrationId=member.id, status=member.status, createdAt=member.created_at.isoformat() if member.created_at else None, session=session)
