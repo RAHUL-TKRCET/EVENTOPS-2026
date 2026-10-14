@@ -34,7 +34,10 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = Field(default=None, validation_alias="SMTP_PASSWORD")
     SMTP_FROM_EMAIL: Optional[str] = Field(default=None, validation_alias="SMTP_FROM_EMAIL")
     SMTP_USE_TLS: bool = Field(default=True, validation_alias="SMTP_USE_TLS")
-    PUBLIC_REGISTRATION_ACTIVATION_TTL_MINUTES: int = Field(default=60, validation_alias="PUBLIC_REGISTRATION_ACTIVATION_TTL_MINUTES")
+    PUBLIC_REGISTRATION_IP_LIMIT: int = Field(default=50, validation_alias="PUBLIC_REGISTRATION_IP_LIMIT")
+    PUBLIC_REGISTRATION_IP_WINDOW_MINUTES: int = Field(default=15, validation_alias="PUBLIC_REGISTRATION_IP_WINDOW_MINUTES")
+    PUBLIC_REGISTRATION_EMAIL_LIMIT: int = Field(default=3, validation_alias="PUBLIC_REGISTRATION_EMAIL_LIMIT")
+    PUBLIC_REGISTRATION_EMAIL_WINDOW_MINUTES: int = Field(default=60, validation_alias="PUBLIC_REGISTRATION_EMAIL_WINDOW_MINUTES")
 
     @model_validator(mode="after")
     def validate_runtime_security(self):
