@@ -137,7 +137,7 @@ export default function ResourceManagerDistributionPage() {
             </select>
           </label>
           {selectedResource && <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 text-sm"><p className="font-medium text-white">{selectedResource.itemName}</p><p className="mt-1 text-slate-400">{selectedResource.category} · {selectedResource.distributedQuantity}/{selectedResource.totalQuantity} {selectedResource.unit} distributed</p></div>}
-          <Button type="button" variant="primary" block disabled={!eventId || !scannedTeam || !selectedResource || issuing || selectedResource.distributedQuantity >= selectedResource.totalQuantity} isLoading={issuing} onClick={() => void issueResource()}>Record one-unit handoff</Button>
+          <Button type="button" variant="primary" className="w-full" disabled={!eventId || !scannedTeam || !selectedResource || issuing || selectedResource.distributedQuantity >= selectedResource.totalQuantity} isLoading={issuing} onClick={() => void issueResource()}>Record one-unit handoff</Button>
           <p className="text-xs leading-5 text-slate-500">A successful handoff is written to the backend and inventory is refreshed. Scanning alone does not change participant attendance or create a distribution record.</p>
         </section>
       </div>
