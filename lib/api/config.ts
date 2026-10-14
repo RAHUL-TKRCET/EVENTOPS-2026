@@ -80,6 +80,7 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
       // Public requests without a bearer token must not mutate session state.
       localStorage.removeItem("eventops_token");
       localStorage.removeItem("eventops_org_id");
+      localStorage.removeItem("eventops_event_id");
       sessionStorage.removeItem("eventops_token");
       window.dispatchEvent(new CustomEvent("eventops:session-expired"));
     }
