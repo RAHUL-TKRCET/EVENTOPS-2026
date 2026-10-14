@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.api.v1.events import _active_role
+from app.api.v1.events import _active_role, require_event_scope
 from app.core.database import get_db
 from app.models.entities import AuditLog, Event, User, Volunteer, VolunteerTask
 
@@ -51,6 +51,119 @@ def _task_response(task: VolunteerTask) -> dict[str, Any]:
         "status": (task.status or "PENDING").upper(),
         "dueTime": task.due_time.isoformat() if task.due_time else None,
     }
+
+
+
+_MANAGER_ROLES = {"SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR"}
+
+
+def _require_task_manager(db: Session, actor: User, event_id: str) -> Event:
+    role = _active_role(actor)
+    if role not in _MANAGER_ROLES:
+        raise HTTPException(status_code=403, detail="Only an event administrator or coordinator can manage volunteer tasks.")
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    # COORDINATOR must have an event-scoped session; org/platform admins are
+    # additionally constrained by the shared event authorization helper.
+    if role == "COORDINATOR" and getattr(actor, "active_event_id", None) != event_id:
+        raise HTTPException(status_code=403, detail="The coordinator session is not scoped to this event.")
+    from app.api.v1.events import require_event_scope
+    require_event_scope(event, actor)
+    return event
+
+
+@router.get("/tasks")
+def list_event_volunteer_tasks(
+    eventId: str,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+):
+    """List persisted tasks for an event's authorized operations workspace."""
+    _require_task_manager(db, actor, eventId)
+    rows = (
+        db.query(VolunteerTask)
+        .filter(VolunteerTask.event_id == eventId)
+        .order_by(VolunteerTask.due_time.asc(), VolunteerTask.id.asc())
+        .all()
+    )
+    volunteers = {
+        row.id: row
+        for row in db.query(Volunteer).filter(Volunteer.event_id == eventId).all()
+    }
+    result = []
+    for task in rows:
+        item = _task_response(task)
+        volunteer = volunteers.get(task.volunteer_id) if task.volunteer_id else None
+        item["volunteerName"] = volunteer.name if volunteer else None
+        item["volunteerRole"] = volunteer.role if volunteer else None
+        result.append(item)
+    return result
+
+
+@router.post("/tasks", status_code=201)
+def create_event_volunteer_task(
+    payload: dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+):
+    """Create a task in the specified event, optionally assigning a volunteer."""
+    event_id = str(payload.get("eventId", "")).strip()
+    title = str(payload.get("title", "")).strip()
+    if not event_id or not title:
+        raise HTTPException(status_code=422, detail="eventId and title are required.")
+    if len(title) > 255:
+        raise HTTPException(status_code=422, detail="Task title must be 255 characters or fewer.")
+    event = _require_task_manager(db, actor, event_id)
+
+    volunteer_id = str(payload.get("volunteerId", "")).strip() or None
+    volunteer = None
+    if volunteer_id:
+        volunteer = db.query(Volunteer).filter(
+            Volunteer.id == volunteer_id,
+            Volunteer.event_id == event_id,
+            Volunteer.status == "ACTIVE",
+        ).first()
+        if not volunteer:
+            raise HTTPException(status_code=422, detail="Choose an active volunteer assigned to this event.")
+
+    due_time = None
+    due_raw = payload.get("dueTime")
+    if due_raw:
+        try:
+            due_time = datetime.fromisoformat(str(due_raw).replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="dueTime must be an ISO-8601 timestamp.") from exc
+        if due_time.tzinfo is None:
+            due_time = due_time.replace(tzinfo=timezone.utc)
+
+    task = VolunteerTask(
+        id=f"tsk-{uuid.uuid4().hex[:12]}",
+        event_id=event_id,
+        volunteer_id=volunteer_id,
+        title=title,
+        description=(str(payload.get("description", "")).strip() or None),
+        zone=(str(payload.get("zone", "")).strip() or (volunteer.zone if volunteer else None)),
+        status="ASSIGNED" if volunteer else "PENDING",
+        due_time=due_time,
+    )
+    db.add(task)
+    db.add(AuditLog(
+        organization_id=event.organization_id,
+        event_id=event_id,
+        user_id=actor.id,
+        user_role=_active_role(actor),
+        action="VOLUNTEER_TASK_CREATED",
+        resource_type="VolunteerTask",
+        resource_id=task.id,
+        metadata_json={"volunteerId": volunteer_id, "status": task.status},
+    ))
+    db.commit()
+    db.refresh(task)
+    item = _task_response(task)
+    item["volunteerName"] = volunteer.name if volunteer else None
+    item["volunteerRole"] = volunteer.role if volunteer else None
+    return item
 
 
 @router.get("/mine")
