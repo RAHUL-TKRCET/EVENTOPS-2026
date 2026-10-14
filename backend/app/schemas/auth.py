@@ -118,7 +118,7 @@ class PublicEventRegistrationRequest(BaseModel):
     name: str = Field(min_length=2, max_length=255)
     email: EmailStr
     phone: Optional[str] = Field(default=None, max_length=50)
-    organizationOrSchool: Optional[str] = Field(default=None, max_length=255)
+    organizationOrSchool: Optional[str] = Field(default=None, max_length=100)
 
 
 class PublicEventRegistrationResponse(BaseModel):
