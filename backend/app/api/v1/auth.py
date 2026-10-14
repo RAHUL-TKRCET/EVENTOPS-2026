@@ -1,14 +1,16 @@
 import uuid
 from datetime import datetime, timezone
+import secrets
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.email import EmailDeliveryError, send_participant_credentials
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token
 from app.models.entities import User, OrganizationMembership, Organization, Event, EventMember, AuditLog
-from app.schemas.auth import LoginRequest, EventLoginRequest, RegisterRequest, TokenResponse, UserResponse, RoleSwitchRequest, RoleSwitchResponse, VerifyInviteRequest, VerifyInviteResponse, EventRegistrationRequest, EventRegistrationStatusResponse, EventRegistrationResult, EventRegistrationSummary
+from app.schemas.auth import LoginRequest, EventLoginRequest, RegisterRequest, TokenResponse, UserResponse, RoleSwitchRequest, RoleSwitchResponse, VerifyInviteRequest, VerifyInviteResponse, EventRegistrationRequest, EventRegistrationStatusResponse, EventRegistrationResult, EventRegistrationSummary, PublicEventRegistrationRequest, PublicEventRegistrationResponse
 from app.api.deps import get_current_user, require_roles
 
 router = APIRouter()
@@ -154,6 +156,115 @@ def _registration_summary(member: EventMember, event: Event) -> EventRegistratio
         eventName=event.name,
         status=member.status or "ACTIVE",
         createdAt=member.created_at.isoformat() if member.created_at else None,
+    )
+
+
+@router.post("/public-event-registration", response_model=PublicEventRegistrationResponse, status_code=status.HTTP_201_CREATED)
+def public_event_registration(payload: PublicEventRegistrationRequest, db: Session = Depends(get_db)):
+    """Register a participant without requiring a prior account or login.
+
+    A temporary credential is emailed only through configured SMTP. If email
+    delivery is unavailable, the transaction is rolled back and no registration
+    is reported as successful.
+    """
+    email = str(payload.email).strip().lower()
+    name = payload.name.strip()
+    event = db.query(Event).filter(Event.id == payload.eventId).with_for_update().first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    if (event.status or "").strip().upper() != "PUBLISHED":
+        raise HTTPException(status_code=409, detail="This event is not published for participant registration.")
+
+    now = datetime.now(timezone.utc)
+    deadline = event.registration_deadline
+    if deadline and deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=timezone.utc)
+    if not deadline or deadline <= now:
+        raise HTTPException(status_code=409, detail="The participant registration deadline has passed or is not configured.")
+
+    existing_user = db.query(User).filter(User.email.ilike(email)).first()
+    if existing_user:
+        # Do not silently take over an identity or rotate credentials based only
+        # on a user-submitted email address. This also avoids role downgrades.
+        raise HTTPException(
+            status_code=409,
+            detail="Registration could not be completed with these details. If you already use EVENTOPS, sign in or contact the event organizer for a safe account-linking path.",
+        )
+
+    existing_member = db.query(EventMember).filter(
+        EventMember.event_id == event.id,
+        EventMember.email.ilike(email),
+        EventMember.role == "PARTICIPANT",
+    ).first()
+    if existing_member:
+        raise HTTPException(
+            status_code=409,
+            detail="Registration could not be completed with these details. Contact the event organizer if you believe you are already registered.",
+        )
+
+    temporary_password = secrets.token_urlsafe(15)
+    user = User(
+        id=f"usr-{uuid.uuid4().hex[:12]}",
+        name=name,
+        email=email,
+        password_hash=get_password_hash(temporary_password),
+        phone=payload.phone.strip() if payload.phone else None,
+        role="PARTICIPANT",
+        organization_id=None,
+    )
+    member = EventMember(
+        id=f"mem-{uuid.uuid4().hex[:12]}",
+        event_id=event.id,
+        user_id=user.id,
+        name=name,
+        email=email,
+        role="PARTICIPANT",
+        phone=payload.phone.strip() if payload.phone else None,
+        zone_or_dept=payload.organizationOrSchool.strip() if payload.organizationOrSchool else None,
+        status="ACTIVE",
+        added_by=None,
+    )
+
+    db.add(user)
+    db.add(member)
+    try:
+        db.flush()
+        # Deliver before commit so an unavailable SMTP provider cannot leave a
+        # registration that falsely claims credentials were sent.
+        send_participant_credentials(email, name, email, temporary_password, event.name, event.id)
+        db.add(AuditLog(
+            organization_id=event.organization_id,
+            event_id=event.id,
+            user_id=user.id,
+            user_role="PARTICIPANT",
+            action="PUBLIC_PARTICIPANT_REGISTERED",
+            resource_type="EventMember",
+            resource_id=member.id,
+            metadata_json={"source": "public-event-registration", "emailDelivery": "accepted"},
+        ))
+        db.commit()
+        db.refresh(member)
+    except EmailDeliveryError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="Registration could not be completed because participant email delivery is unavailable. Please retry later or contact the organizer.",
+        ) from exc
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Registration could not be completed because of a data conflict. Please retry.") from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return PublicEventRegistrationResponse(
+        eventId=event.id,
+        eventName=event.name,
+        registrationId=member.id,
+        status=member.status or "ACTIVE",
+        createdAt=member.created_at.isoformat() if member.created_at else None,
+        emailStatus="sent",
+        message="Registration completed. Login details were accepted by the configured email provider.",
     )
 
 
