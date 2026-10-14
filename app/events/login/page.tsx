@@ -12,7 +12,7 @@ import { Building, HeartHandshake, Package, Scale, ShieldCheck, Wrench, KeyRound
 type EventRole = Exclude<UserRole, "SUPER_ADMIN" | "ORGANIZATION_ADMIN" | "PARTICIPANT">;
 
 const roleOptions: Array<{ role: EventRole; label: string; description: string; home: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { role: "EVENT_ADMIN", label: "Event Admin", description: "Operate and administer this specific event.", home: "/dashboard", icon: Building },
+  { role: "EVENT_ADMIN", label: "Event Admin", description: "Operate and administer this specific event.", home: "/events/detail", icon: Building },
   { role: "COORDINATOR", label: "Coordinator", description: "Manage the event floor, attendance, and operational issues.", home: "/control-center", icon: ShieldCheck },
   { role: "JUDGE", label: "Judge", description: "Review assigned teams and submit evaluation scores.", home: "/judge", icon: Scale },
   { role: "VOLUNTEER", label: "Volunteer", description: "Use assigned field operations and attendance tools.", home: "/attendance/scanner", icon: HeartHandshake },
