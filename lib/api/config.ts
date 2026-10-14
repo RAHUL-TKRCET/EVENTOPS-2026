@@ -75,6 +75,14 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
     } catch {
       // Keep HTTP status when the response is not JSON.
     }
+    if (response.status === 401 && mergedHeaders.Authorization && typeof window !== "undefined") {
+      // Only clear a session when a request carrying its token is rejected.
+      // Public requests without a bearer token must not mutate session state.
+      localStorage.removeItem("eventops_token");
+      localStorage.removeItem("eventops_org_id");
+      sessionStorage.removeItem("eventops_token");
+      window.dispatchEvent(new CustomEvent("eventops:session-expired"));
+    }
     const error = new Error(errorDetail) as Error & { status?: number };
     error.status = response.status;
     throw error;
