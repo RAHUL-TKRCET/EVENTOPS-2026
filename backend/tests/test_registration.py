@@ -391,6 +391,46 @@ def test_delete_draft_allows_only_empty_draft_and_blocks_linked_history(client):
         db.close()
 
 
+
+def test_delete_draft_allows_generated_rounds_and_preserves_audit_history(client):
+    token, event_id = _create_org_admin_and_draft(client)
+    db = client.registration_test_session()
+    try:
+        round_record = Round(
+            id=f"rnd-{uuid.uuid4().hex[:8]}", event_id=event_id, name="Default Round",
+            round_order=1, status="UPCOMING",
+            start_time=datetime.now(timezone.utc) + timedelta(days=7),
+            end_time=datetime.now(timezone.utc) + timedelta(days=8),
+        )
+        db.add(round_record)
+        db.flush()
+        db.add(RoundCriterion(
+            id=f"crit-{uuid.uuid4().hex[:8]}", round_id=round_record.id,
+            name="Default criterion", max_score=25, weight=1.0,
+        ))
+        db.add(AuditLog(
+            event_id=event_id, action="DRAFT_CREATED",
+            resource_type="Event", resource_id=event_id,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.delete(
+        f"/api/v1/events/{event_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 204, response.text
+    db = client.registration_test_session()
+    try:
+        assert db.query(Event).filter(Event.id == event_id).first() is None
+        assert db.query(AuditLog).filter(
+            AuditLog.event_id == event_id, AuditLog.action == "DRAFT_EVENT_DELETED"
+        ).count() == 1
+    finally:
+        db.close()
+
+
 def test_delete_draft_rejects_published_event_and_generic_status_updates(client):
     token, event_id = _create_org_admin_and_draft(client, status="PUBLISHED")
     delete_response = client.delete(
