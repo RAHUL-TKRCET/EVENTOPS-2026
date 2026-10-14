@@ -323,16 +323,18 @@ export const authApi = {
     });
   },
 
+  // Recovery is intentionally unavailable until a secure, expiring backend
+  // token/OTP lifecycle with verified email delivery is implemented.
   async verifyOtp(_email: string, _otp: string): Promise<boolean> {
-    return true;
+    throw new Error("Password recovery is not configured yet. No verification code was checked.");
   },
 
   async forgotPassword(_email: string): Promise<{ success: boolean; message: string }> {
-    return { success: true, message: "Password reset instructions dispatched to your verified email." };
+    throw new Error("Password recovery is not configured yet. No email was sent.");
   },
 
   async resetPassword(_password: string): Promise<{ success: boolean }> {
-    return { success: true };
+    throw new Error("Password recovery is not configured yet. No password was changed.");
   },
 
   async logout(): Promise<void> {
