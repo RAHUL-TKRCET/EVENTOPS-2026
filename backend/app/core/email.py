@@ -46,6 +46,8 @@ def send_participant_credentials(to_email: str, name: str, email: str, password:
                 server.starttls(context=context)
                 server.ehlo()
             server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-            server.send_message(message)
+            refused = server.send_message(message)
+            if refused:
+                raise EmailDeliveryError("The email provider refused delivery to the participant address.")
     except Exception as exc:
         raise EmailDeliveryError("The email provider did not accept the participant credentials message.") from exc
