@@ -477,7 +477,19 @@ def register_for_event(
 
 @router.get("/me", response_model=UserResponse)
 def get_current_user_profile(current_user: User = Depends(get_current_user)):
-    return UserResponse(id=current_user.id, name=current_user.name, email=current_user.email, role=current_user.role, organizationId=current_user.organization_id, createdAt=current_user.created_at.isoformat() if current_user.created_at else None)
+    # get_current_user verifies the role and event scope from the access JWT.
+    # Return that verified context, not only the account's persisted default role.
+    active_role = getattr(current_user, "active_role", None) or current_user.role
+    active_org = getattr(current_user, "active_organization_id", None) or current_user.organization_id
+    return UserResponse(
+        id=current_user.id,
+        name=current_user.name,
+        email=current_user.email,
+        phone=current_user.phone,
+        role=active_role,
+        organizationId=active_org,
+        createdAt=current_user.created_at.isoformat() if current_user.created_at else None,
+    )
 
 
 @router.post("/switch-role", response_model=RoleSwitchResponse)
