@@ -117,7 +117,7 @@ export default function StaticEventLoginPage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button type="submit" disabled={busy || eventLoading || !eventId} isLoading={busy} rightIcon={<KeyRound className="h-4 w-4"}>{busy ? "Signing in…" : `Sign in as ${roleOptions.find((option) => option.role === selectedRole)?.label}`}</Button>
+            <Button type="submit" disabled={busy || eventLoading || !eventId} isLoading={busy} rightIcon={<KeyRound className="h-4 w-4" />}{busy ? "Signing in…" : `Sign in as ${roleOptions.find((option) => option.role === selectedRole)?.label}`}</Button>
             <Button type="button" variant="outline" onClick={() => router.push(eventId ? `/events/portal?eventId=${encodeURIComponent(eventId)}` : "/")}>Back to event portal</Button>
           </div>
         </form>
