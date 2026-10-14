@@ -18,6 +18,7 @@ class UserResponse(BaseModel):
     id: str
     name: str
     email: str
+    phone: Optional[str] = None
     role: str
     organizationId: Optional[str] = None
     createdAt: Optional[str] = None
@@ -42,11 +43,15 @@ class RegisterRequest(BaseModel):
     name: str = Field(min_length=2, max_length=255)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
-    # Public registration may create only a participant or a new organization owner.
-    # Event/platform privileges are assigned through trusted administrative workflows.
     role: Optional[UserRole] = "PARTICIPANT"
     organizationId: Optional[str] = None
     organizationName: Optional[str] = Field(default=None, min_length=2, max_length=255)
+
+
+class ProfileUpdateRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=255)
+    email: EmailStr
+    phone: Optional[str] = Field(default=None, max_length=50)
 
 
 class TokenResponse(BaseModel):
@@ -109,4 +114,3 @@ class EventRegistrationSummary(BaseModel):
     eventName: str
     status: str
     createdAt: Optional[str] = None
-
