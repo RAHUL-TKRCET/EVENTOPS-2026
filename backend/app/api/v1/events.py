@@ -474,6 +474,10 @@ def delete_draft_event(
         ))
         db.flush()
 
+        # Remove revoked invitations explicitly as some test/dev SQLite setups
+        # run without FK cascade enforcement; their revocation audit rows remain.
+        db.query(Invitation).filter(Invitation.event_id == event_id).delete(synchronize_session=False)
+
         # Explicitly remove draft-only configuration so default-created rounds,
         # criteria, schedules, venues/benches, rules and constraints don't make a
         # brand-new draft undeletable. Operational records were guarded above.
