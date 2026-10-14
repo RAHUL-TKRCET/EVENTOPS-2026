@@ -16,7 +16,10 @@ if backend_dir not in sys.path:
 from app.main import app
 from app.core.database import Base, get_db
 from app.core.security import get_password_hash
-from app.models.entities import Event, EventMember, Organization, OrganizationMembership, User
+from app.core.email import EmailDeliveryError
+from app.core.config import settings
+import app.api.v1.auth as auth_module
+from app.models.entities import Event, EventMember, Organization, OrganizationMembership, User, Round, RoundCriterion, AuditLog
 
 
 @pytest.fixture
@@ -388,6 +391,46 @@ def test_delete_draft_allows_only_empty_draft_and_blocks_linked_history(client):
         db.close()
 
 
+
+def test_delete_draft_allows_generated_rounds_and_preserves_audit_history(client):
+    token, event_id = _create_org_admin_and_draft(client)
+    db = client.registration_test_session()
+    try:
+        round_record = Round(
+            id=f"rnd-{uuid.uuid4().hex[:8]}", event_id=event_id, name="Default Round",
+            round_order=1, status="UPCOMING",
+            start_time=datetime.now(timezone.utc) + timedelta(days=7),
+            end_time=datetime.now(timezone.utc) + timedelta(days=8),
+        )
+        db.add(round_record)
+        db.flush()
+        db.add(RoundCriterion(
+            id=f"crit-{uuid.uuid4().hex[:8]}", round_id=round_record.id,
+            name="Default criterion", max_score=25, weight=1.0,
+        ))
+        db.add(AuditLog(
+            event_id=event_id, action="DRAFT_CREATED",
+            resource_type="Event", resource_id=event_id,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.delete(
+        f"/api/v1/events/{event_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 204, response.text
+    db = client.registration_test_session()
+    try:
+        assert db.query(Event).filter(Event.id == event_id).first() is None
+        assert db.query(AuditLog).filter(
+            AuditLog.event_id == event_id, AuditLog.action == "DRAFT_EVENT_DELETED"
+        ).count() == 1
+    finally:
+        db.close()
+
+
 def test_delete_draft_rejects_published_event_and_generic_status_updates(client):
     token, event_id = _create_org_admin_and_draft(client, status="PUBLISHED")
     delete_response = client.delete(
@@ -553,3 +596,140 @@ def test_event_registration_status_does_not_leak_another_participants_record(cli
     assert response.status_code == 200
     assert response.json()["registered"] is False
     assert response.json()["registrationId"] is None
+
+
+
+def _published_event_for_public_registration(client):
+    now = datetime.now(timezone.utc)
+    event_id = f"evt-{uuid.uuid4().hex[:10]}"
+    db = client.registration_test_session()
+    try:
+        db.add(Event(
+            id=event_id, name="Public Registration Test", type="HACKATHON",
+            description="Public test event", location="Main Hall", status="PUBLISHED",
+            start_date=now + timedelta(days=5), end_date=now + timedelta(days=6),
+            registration_deadline=now + timedelta(days=4),
+        ))
+        db.commit()
+    finally:
+        db.close()
+    return event_id
+
+
+def test_public_event_registration_creates_participant_and_membership_without_login(client, monkeypatch):
+    event_id = _published_event_for_public_registration(client)
+    delivered = []
+    monkeypatch.setattr(auth_module, "send_participant_credentials",
+        lambda to_email, name, email, password, event_name, eid: delivered.append(
+            {"to": to_email, "email": email, "password": password, "eventId": eid}
+        ))
+
+    response = client.post("/api/v1/auth/public-event-registration", json={
+        "eventId": event_id, "name": "Public Participant",
+        "email": f"public-{uuid.uuid4().hex[:10]}@example.com",
+        "phone": "9999999999", "organizationOrSchool": "TKR College",
+    })
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["eventId"] == event_id
+    assert body["emailStatus"] == "sent"
+    assert body["registrationId"]
+    assert len(delivered) == 1
+    assert delivered[0]["password"]
+
+    db = client.registration_test_session()
+    try:
+        member = db.query(EventMember).filter(EventMember.id == body["registrationId"]).one()
+        user = db.query(User).filter(User.id == member.user_id).one()
+        assert user.role == "PARTICIPANT"
+        assert user.password_hash != delivered[0]["password"]
+        assert member.phone == "9999999999"
+        assert member.zone_or_dept == "TKR College"
+        assert db.query(AuditLog).filter(
+            AuditLog.event_id == event_id, AuditLog.action == "PUBLIC_PARTICIPANT_REGISTERED"
+        ).count() == 1
+    finally:
+        db.close()
+
+
+def test_public_event_registration_rolls_back_when_email_delivery_is_unavailable(client, monkeypatch):
+    event_id = _published_event_for_public_registration(client)
+    def fail_delivery(*_args, **_kwargs):
+        raise EmailDeliveryError("smtp not configured")
+    monkeypatch.setattr(auth_module, "send_participant_credentials", fail_delivery)
+    email = f"undelivered-{uuid.uuid4().hex[:10]}@example.com"
+    response = client.post("/api/v1/auth/public-event-registration", json={
+        "eventId": event_id, "name": "Undelivered Participant", "email": email,
+    })
+    assert response.status_code == 503
+    db = client.registration_test_session()
+    try:
+        assert db.query(User).filter(User.email == email).first() is None
+        assert db.query(EventMember).filter(EventMember.event_id == event_id, EventMember.email == email).first() is None
+    finally:
+        db.close()
+
+
+def test_public_event_registration_rejects_closed_or_unpublished_event(client, monkeypatch):
+    now = datetime.now(timezone.utc)
+    event_id = f"evt-{uuid.uuid4().hex[:10]}"
+    db = client.registration_test_session()
+    try:
+        db.add(Event(
+            id=event_id, name="Draft Public Registration", type="HACKATHON", status="DRAFT",
+            start_date=now + timedelta(days=3), end_date=now + timedelta(days=4),
+            registration_deadline=now + timedelta(days=2),
+        ))
+        db.commit()
+    finally:
+        db.close()
+    monkeypatch.setattr(auth_module, "send_participant_credentials", lambda *_args, **_kwargs: None)
+    response = client.post("/api/v1/auth/public-event-registration", json={
+        "eventId": event_id, "name": "Draft Participant",
+        "email": f"draft-{uuid.uuid4().hex[:8]}@example.com",
+    })
+    assert response.status_code == 409
+    assert "published" in response.json()["detail"].lower()
+
+
+def test_public_event_registration_never_overwrites_existing_account(client, monkeypatch):
+    user_email = f"existing-{uuid.uuid4().hex[:10]}@example.com"
+    existing = client.post("/api/v1/auth/register", json={
+        "name": "Existing Participant", "email": user_email,
+        "password": "A-strong-test-password-2026", "role": "PARTICIPANT",
+    })
+    assert existing.status_code == 201
+    event_id = _published_event_for_public_registration(client)
+    called = []
+    monkeypatch.setattr(auth_module, "send_participant_credentials", lambda *_args, **_kwargs: called.append(True))
+    response = client.post("/api/v1/auth/public-event-registration", json={
+        "eventId": event_id, "name": "Attempted Takeover", "email": user_email,
+    })
+    assert response.status_code == 409
+    assert called == []
+    db = client.registration_test_session()
+    try:
+        user = db.query(User).filter(User.email == user_email).one()
+        assert user.name == "Existing Participant"
+        assert db.query(EventMember).filter(EventMember.event_id == event_id, EventMember.email == user_email).count() == 0
+    finally:
+        db.close()
+
+
+def test_public_event_registration_rate_limits_repeated_attempts(client, monkeypatch):
+    event_id = _published_event_for_public_registration(client)
+    monkeypatch.setattr(settings, "PUBLIC_REGISTRATION_IP_LIMIT", 1)
+    monkeypatch.setattr(auth_module, "send_participant_credentials", lambda *_args, **_kwargs: None)
+
+    first = client.post("/api/v1/auth/public-event-registration", json={
+        "eventId": event_id, "name": "First Public Participant",
+        "email": f"first-{uuid.uuid4().hex[:10]}@example.com",
+    })
+    assert first.status_code == 201, first.text
+
+    second = client.post("/api/v1/auth/public-event-registration", json={
+        "eventId": event_id, "name": "Second Public Participant",
+        "email": f"second-{uuid.uuid4().hex[:10]}@example.com",
+    })
+    assert second.status_code == 429, second.text
+    assert "Retry-After" in second.headers

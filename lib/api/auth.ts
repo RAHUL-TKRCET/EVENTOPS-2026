@@ -216,6 +216,40 @@ export const authApi = {
     };
   },
 
+  async registerForPublicEvent(data: {
+    eventId: string;
+    name: string;
+    email: string;
+    phone?: string;
+    organizationOrSchool?: string;
+  }): Promise<{
+    eventId: string;
+    eventName: string;
+    registrationId: string;
+    status: string;
+    createdAt?: string;
+    emailStatus: "sent" | "pending" | "unavailable";
+    message: string;
+  }> {
+    // The endpoint is public and does not use the browser's existing identity.
+    // Explicitly suppress any previously saved authorization/tenant context.
+    return apiRequest("/auth/public-event-registration", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "",
+        "x-organization-id": "",
+      },
+      body: JSON.stringify({
+        eventId: data.eventId,
+        name: data.name.trim(),
+        email: data.email.trim().toLowerCase(),
+        ...(data.phone?.trim() ? { phone: data.phone.trim() } : {}),
+        ...(data.organizationOrSchool?.trim() ? { organizationOrSchool: data.organizationOrSchool.trim() } : {}),
+      }),
+    });
+  },
+
   async registerForEvent(eventId: string): Promise<{
     eventId: string;
     eventName: string;

@@ -13,7 +13,9 @@ from app.models.entities import (
     EventRule,
     EventMember,
     Team,
+    TeamMember,
     Venue,
+    Bench,
     Judge,
     Evaluation,
     AttendanceRecord,
@@ -405,7 +407,7 @@ def delete_draft_event(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles(["SUPER_ADMIN", "ORGANIZATION_ADMIN"])),
 ):
-    """Delete only an empty draft. The backend blocks deletion if any linked history exists."""
+    """Delete an unused draft while preserving audit history and guarding operational records."""
     event = db.query(Event).filter(Event.id == event_id).with_for_update().first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
@@ -415,36 +417,96 @@ def delete_draft_event(
     if current_status != "DRAFT":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Only draft events can be permanently deleted. Published or operational events must be managed through an approved lifecycle workflow.",
+            detail="Only draft events can be permanently deleted. Published or operational events must use an approved archive/cancellation workflow.",
         )
 
-    # These rows contain event identity, participation, assignment, operations, or audit history.
-    # Do not let ON DELETE CASCADE silently erase them when deleting an event.
-    dependent_models = (
-        EventMember, Invitation, Round, TimeSlot, EventRule, Venue, Team, Judge,
-        Evaluation, AttendanceRecord, AllocationConstraint, AllocationResult,
-        Volunteer, VolunteerTask, Resource, ResourceDistribution, Incident, AuditLog,
+    # Only operational/participation records block deletion. Drafts are commonly
+    # created with default rounds/rules and may have non-operational audit entries.
+    blocking_models = (
+        EventMember, Team, Judge, Evaluation, AttendanceRecord, AllocationResult,
+        Volunteer, VolunteerTask, ResourceDistribution, Incident,
     )
-    dependencies = []
-    for model in dependent_models:
-        if db.query(model).filter(model.event_id == event_id).first() is not None:
-            dependencies.append(model.__tablename__)
-
-    # Rows indirectly owned by a parent (criteria, benches, team members) are protected by
-    # checking their parent (round, venue, or team) above. Audit logs are checked separately
-    # because their event_id is intentionally not a foreign key.
+    dependencies = [
+        model.__tablename__
+        for model in blocking_models
+        if db.query(model).filter(model.event_id == event_id).first() is not None
+    ]
     if dependencies:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={
-                "message": "This draft cannot be deleted because linked records or operational history exist.",
+                "message": "This draft cannot be deleted because participant or operational history exists.",
                 "dependencies": dependencies,
                 "nextStep": "Keep the event and use an approved archive/cancellation workflow if it should no longer be active.",
             },
         )
 
-    db.delete(event)
-    db.commit()
+    now = datetime.now(timezone.utc)
+    try:
+        # Pending event invitations become revoked before the draft is removed.
+        event_invitations = db.query(Invitation).filter(Invitation.event_id == event_id).all()
+        for invitation in event_invitations:
+            if (invitation.status or "").upper() not in {"REVOKED", "EXPIRED"}:
+                invitation.status = "REVOKED"
+                invitation.revoked_at = now
+            db.add(AuditLog(
+                organization_id=event.organization_id,
+                event_id=event.id,
+                user_id=current_user.id,
+                user_role=getattr(current_user, "active_role", current_user.role),
+                action="DRAFT_INVITATION_REVOKED",
+                resource_type="Invitation",
+                resource_id=invitation.id,
+                metadata_json={"reason": "parent draft deleted"},
+            ))
+
+        # Record the deletion while preserving audit rows (audit_logs.event_id is
+        # not a foreign key, so these entries survive removal of the event).
+        db.add(AuditLog(
+            organization_id=event.organization_id,
+            event_id=event.id,
+            user_id=current_user.id,
+            user_role=getattr(current_user, "active_role", current_user.role),
+            action="DRAFT_EVENT_DELETED",
+            resource_type="Event",
+            resource_id=event.id,
+            metadata_json={"reason": "unused draft deletion"},
+        ))
+        db.flush()
+
+        # Remove revoked invitations explicitly as some test/dev SQLite setups
+        # run without FK cascade enforcement; their revocation audit rows remain.
+        db.query(Invitation).filter(Invitation.event_id == event_id).delete(synchronize_session=False)
+
+        # Explicitly remove draft-only configuration so default-created rounds,
+        # criteria, schedules, venues/benches, rules and constraints don't make a
+        # brand-new draft undeletable. Operational records were guarded above.
+        round_ids = [row.id for row in db.query(Round.id).filter(Round.event_id == event_id).all()]
+        if round_ids:
+            db.query(RoundCriterion).filter(RoundCriterion.round_id.in_(round_ids)).delete(synchronize_session=False)
+        venue_ids = [row.id for row in db.query(Venue.id).filter(Venue.event_id == event_id).all()]
+        if venue_ids:
+            db.query(Bench).filter(Bench.venue_id.in_(venue_ids)).delete(synchronize_session=False)
+        team_ids = [row.id for row in db.query(Team.id).filter(Team.event_id == event_id).all()]
+        if team_ids:
+            db.query(TeamMember).filter(TeamMember.team_id.in_(team_ids)).delete(synchronize_session=False)
+        db.query(TimeSlot).filter(TimeSlot.event_id == event_id).delete(synchronize_session=False)
+        db.query(EventRule).filter(EventRule.event_id == event_id).delete(synchronize_session=False)
+        db.query(Venue).filter(Venue.event_id == event_id).delete(synchronize_session=False)
+        db.query(Round).filter(Round.event_id == event_id).delete(synchronize_session=False)
+        db.query(AllocationConstraint).filter(AllocationConstraint.event_id == event_id).delete(synchronize_session=False)
+        db.query(Resource).filter(Resource.event_id == event_id).delete(synchronize_session=False)
+        db.query(ResourceDistribution).filter(ResourceDistribution.event_id == event_id).delete(synchronize_session=False)
+        db.query(VolunteerTask).filter(VolunteerTask.event_id == event_id).delete(synchronize_session=False)
+        db.query(Volunteer).filter(Volunteer.event_id == event_id).delete(synchronize_session=False)
+        db.query(Judge).filter(Judge.event_id == event_id).delete(synchronize_session=False)
+
+        # Deletion audit must remain and therefore is deliberately not removed.
+        db.delete(event)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return None
 
 

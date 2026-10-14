@@ -20,6 +20,7 @@ class UserResponse(BaseModel):
     email: str
     role: str
     organizationId: Optional[str] = None
+    phone: Optional[str] = None
     createdAt: Optional[str] = None
 
     model_config = {"from_attributes": True}
@@ -110,3 +111,28 @@ class EventRegistrationSummary(BaseModel):
     status: str
     createdAt: Optional[str] = None
 
+
+
+class PublicEventRegistrationRequest(BaseModel):
+    """Unauthenticated participant registration for a published event."""
+    eventId: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=2, max_length=255)
+    email: EmailStr
+    phone: Optional[str] = Field(default=None, max_length=50)
+    organizationOrSchool: Optional[str] = Field(default=None, max_length=100)
+
+
+class PublicEventRegistrationResponse(BaseModel):
+    eventId: str
+    eventName: str
+    registrationId: str
+    status: str
+    createdAt: Optional[str] = None
+    emailStatus: Literal["sent", "pending", "unavailable"]
+    message: str
+
+
+class ProfileUpdateRequest(BaseModel):
+    """Fields the signed-in user may update on their own profile."""
+    name: str = Field(min_length=2, max_length=255)
+    phone: Optional[str] = Field(default=None, max_length=50)

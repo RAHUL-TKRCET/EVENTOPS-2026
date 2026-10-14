@@ -387,6 +387,19 @@ cp .env.example .env
 | `CLIENT_ORIGIN` | `https://rahul-tkrcet.github.io` | Allowed CORS origin for frontend |
 | `REDIS_URL` | `redis://localhost:6379` | Optional Redis broker for distributed cluster pub/sub |
 | `AI_PROVIDER` | `mock` | Constraint parser integration (`mock`, `gemini`, or `openai`) |
+| `EMAIL_PROVIDER` | `disabled` | Set to `smtp` to enable participant credential email. While disabled, public registration fails closed and saves no participant record. |
+| `SMTP_HOST` | None | SMTP server hostname required for participant credential email. |
+| `SMTP_PORT` | `587` | SMTP server port. |
+| `SMTP_USERNAME` / `SMTP_PASSWORD` | None | Deployment secrets for the SMTP account; never commit these values. |
+| `SMTP_FROM_EMAIL` | None | Verified sender address used for participant credential email. |
+| `SMTP_USE_TLS` | `true` | Upgrade SMTP connection with STARTTLS. |
+| `PUBLIC_APP_URL` | `https://rahul-tkrcet.github.io/EVENTOPS-2026` | Public app origin including the GitHub Pages repository base path; used to generate participant login links. |
+| `PUBLIC_REGISTRATION_IP_LIMIT` | `50` | Maximum public registration attempts per client IP during the configured window. |
+| `PUBLIC_REGISTRATION_IP_WINDOW_MINUTES` | `15` | Client-IP rate-limit window in minutes. |
+| `PUBLIC_REGISTRATION_EMAIL_LIMIT` | `3` | Maximum attempts for one normalized email hash during the configured window. |
+| `PUBLIC_REGISTRATION_EMAIL_WINDOW_MINUTES` | `60` | Per-email rate-limit window in minutes. |
+
+**Participant registration email requirement:** Configure the SMTP variables in the backend deployment environment before opening registration to participants. The API deliberately does not claim success or keep a new registration if the configured mail provider cannot accept the credential email.
 
 ### Frontend Environment Variables
 | Variable | Default Value | Description |

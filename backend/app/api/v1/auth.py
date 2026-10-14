@@ -1,14 +1,17 @@
 import uuid
-from datetime import datetime, timezone
+import hashlib
+from datetime import datetime, timedelta, timezone
+import secrets
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.email import EmailDeliveryError, send_participant_credentials
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token
 from app.models.entities import User, OrganizationMembership, Organization, Event, EventMember, AuditLog
-from app.schemas.auth import LoginRequest, EventLoginRequest, RegisterRequest, TokenResponse, UserResponse, RoleSwitchRequest, RoleSwitchResponse, VerifyInviteRequest, VerifyInviteResponse, EventRegistrationRequest, EventRegistrationStatusResponse, EventRegistrationResult, EventRegistrationSummary
+from app.schemas.auth import LoginRequest, EventLoginRequest, RegisterRequest, TokenResponse, UserResponse, RoleSwitchRequest, RoleSwitchResponse, VerifyInviteRequest, VerifyInviteResponse, EventRegistrationRequest, EventRegistrationStatusResponse, EventRegistrationResult, EventRegistrationSummary, PublicEventRegistrationRequest, PublicEventRegistrationResponse
 from app.api.deps import get_current_user, require_roles
 
 router = APIRouter()
@@ -154,6 +157,169 @@ def _registration_summary(member: EventMember, event: Event) -> EventRegistratio
         eventName=event.name,
         status=member.status or "ACTIVE",
         createdAt=member.created_at.isoformat() if member.created_at else None,
+    )
+
+
+@router.post("/public-event-registration", response_model=PublicEventRegistrationResponse, status_code=status.HTTP_201_CREATED)
+def public_event_registration(
+    payload: PublicEventRegistrationRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Register a participant without requiring a prior account or login.
+
+    Rate-limit public registration attempts using existing append-only audit rows;
+    send temporary credentials only through configured SMTP. If SMTP is not
+    available, roll back the new user and membership and never report success.
+    """
+    email = str(payload.email).strip().lower()
+    name = payload.name.strip()
+    event = db.query(Event).filter(Event.id == payload.eventId).with_for_update().first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+
+    # Do not trust arbitrary X-Forwarded-For headers here; use the address
+    # provided by the ASGI server. Hash the email for per-address throttling so
+    # attempts are rate-limited without keeping a copy of submitted email data.
+    client_ip = request.client.host if request.client else "unknown"
+    email_digest = hashlib.sha256(email.encode("utf-8")).hexdigest()
+    ip_window = max(1, settings.PUBLIC_REGISTRATION_IP_WINDOW_MINUTES)
+    email_window = max(1, settings.PUBLIC_REGISTRATION_EMAIL_WINDOW_MINUTES)
+    ip_limit = max(1, settings.PUBLIC_REGISTRATION_IP_LIMIT)
+    email_limit = max(1, settings.PUBLIC_REGISTRATION_EMAIL_LIMIT)
+    now = datetime.now(timezone.utc)
+
+    ip_cutoff = now - timedelta(minutes=ip_window)
+    ip_attempts = db.query(AuditLog).filter(
+        AuditLog.action == "PUBLIC_REGISTRATION_ATTEMPT",
+        AuditLog.ip_address == client_ip,
+        AuditLog.created_at >= ip_cutoff,
+    ).count()
+    if ip_attempts >= ip_limit:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many registration attempts from this connection. Wait a while before trying again.",
+            headers={"Retry-After": str(ip_window * 60)},
+        )
+
+    email_cutoff = now - timedelta(minutes=email_window)
+    email_attempts = db.query(AuditLog).filter(
+        AuditLog.action == "PUBLIC_REGISTRATION_ATTEMPT",
+        AuditLog.resource_id == email_digest,
+        AuditLog.created_at >= email_cutoff,
+    ).count()
+    if email_attempts >= email_limit:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many registration attempts were made for these details. Wait a while before trying again.",
+            headers={"Retry-After": str(email_window * 60)},
+        )
+
+    db.add(AuditLog(
+        organization_id=event.organization_id,
+        event_id=event.id,
+        user_id=None,
+        user_role="ANONYMOUS",
+        action="PUBLIC_REGISTRATION_ATTEMPT",
+        resource_type="PublicEventRegistration",
+        resource_id=email_digest,
+        ip_address=client_ip,
+        metadata_json={"source": "public-event-registration", "emailHash": email_digest},
+    ))
+    # Persist the attempt separately so provider failures and business-rule
+    # rejection do not reset the throttle counter.
+    db.commit()
+
+    if (event.status or "").strip().upper() != "PUBLISHED":
+        raise HTTPException(status_code=409, detail="This event is not published for participant registration.")
+
+    deadline = event.registration_deadline
+    if deadline and deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=timezone.utc)
+    if not deadline or deadline <= now:
+        raise HTTPException(status_code=409, detail="The participant registration deadline has passed or is not configured.")
+
+    existing_user = db.query(User).filter(User.email.ilike(email)).first()
+    if existing_user:
+        # Do not silently take over an identity or rotate credentials based only
+        # on a user-submitted email address. This also avoids role downgrades.
+        raise HTTPException(
+            status_code=409,
+            detail="Registration could not be completed with these details. If you already use EVENTOPS, sign in or contact the event organizer for a safe account-linking path.",
+        )
+
+    existing_member = db.query(EventMember).filter(
+        EventMember.event_id == event.id,
+        EventMember.email.ilike(email),
+        EventMember.role == "PARTICIPANT",
+    ).first()
+    if existing_member:
+        raise HTTPException(
+            status_code=409,
+            detail="Registration could not be completed with these details. Contact the event organizer if you believe you are already registered.",
+        )
+
+    temporary_password = secrets.token_urlsafe(15)
+    user = User(
+        id=f"usr-{uuid.uuid4().hex[:12]}",
+        name=name,
+        email=email,
+        password_hash=get_password_hash(temporary_password),
+        phone=payload.phone.strip() if payload.phone else None,
+        role="PARTICIPANT",
+        organization_id=None,
+    )
+    member = EventMember(
+        id=f"mem-{uuid.uuid4().hex[:12]}",
+        event_id=event.id,
+        user_id=user.id,
+        name=name,
+        email=email,
+        role="PARTICIPANT",
+        phone=payload.phone.strip() if payload.phone else None,
+        zone_or_dept=payload.organizationOrSchool.strip() if payload.organizationOrSchool else None,
+        status="ACTIVE",
+        added_by=None,
+    )
+
+    db.add(user)
+    db.add(member)
+    try:
+        db.flush()
+        send_participant_credentials(email, name, email, temporary_password, event.name, event.id)
+        db.add(AuditLog(
+            organization_id=event.organization_id,
+            event_id=event.id,
+            user_id=user.id,
+            user_role="PARTICIPANT",
+            action="PUBLIC_PARTICIPANT_REGISTERED",
+            resource_type="EventMember",
+            resource_id=member.id,
+            metadata_json={"source": "public-event-registration", "emailDelivery": "accepted"},
+        ))
+        db.commit()
+        db.refresh(member)
+    except EmailDeliveryError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail="Registration could not be completed because participant email delivery is unavailable. Please retry later or contact the organizer.",
+        ) from exc
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Registration could not be completed because of a data conflict. Please retry.") from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return PublicEventRegistrationResponse(
+        eventId=event.id,
+        eventName=event.name,
+        registrationId=member.id,
+        status=member.status or "ACTIVE",
+        createdAt=member.created_at.isoformat() if member.created_at else None,
+        emailStatus="sent",
+        message="Registration completed. Login details were accepted by the configured email provider.",
     )
 
 

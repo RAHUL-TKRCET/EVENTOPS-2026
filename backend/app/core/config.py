@@ -26,6 +26,18 @@ class Settings(BaseSettings):
     REDIS_URL: Optional[str] = Field(default="redis://localhost:6379", validation_alias="REDIS_URL")
     AI_PROVIDER: str = Field(default="mock", validation_alias="AI_PROVIDER")
     AI_API_KEY: Optional[str] = Field(default=None, validation_alias="AI_API_KEY")
+    EMAIL_PROVIDER: str = Field(default="disabled", validation_alias="EMAIL_PROVIDER")
+    PUBLIC_APP_URL: str = Field(default="https://rahul-tkrcet.github.io/EVENTOPS-2026", validation_alias="PUBLIC_APP_URL")
+    SMTP_HOST: Optional[str] = Field(default=None, validation_alias="SMTP_HOST")
+    SMTP_PORT: int = Field(default=587, validation_alias="SMTP_PORT")
+    SMTP_USERNAME: Optional[str] = Field(default=None, validation_alias="SMTP_USERNAME")
+    SMTP_PASSWORD: Optional[str] = Field(default=None, validation_alias="SMTP_PASSWORD")
+    SMTP_FROM_EMAIL: Optional[str] = Field(default=None, validation_alias="SMTP_FROM_EMAIL")
+    SMTP_USE_TLS: bool = Field(default=True, validation_alias="SMTP_USE_TLS")
+    PUBLIC_REGISTRATION_IP_LIMIT: int = Field(default=50, validation_alias="PUBLIC_REGISTRATION_IP_LIMIT")
+    PUBLIC_REGISTRATION_IP_WINDOW_MINUTES: int = Field(default=15, validation_alias="PUBLIC_REGISTRATION_IP_WINDOW_MINUTES")
+    PUBLIC_REGISTRATION_EMAIL_LIMIT: int = Field(default=3, validation_alias="PUBLIC_REGISTRATION_EMAIL_LIMIT")
+    PUBLIC_REGISTRATION_EMAIL_WINDOW_MINUTES: int = Field(default=60, validation_alias="PUBLIC_REGISTRATION_EMAIL_WINDOW_MINUTES")
 
     @model_validator(mode="after")
     def validate_runtime_security(self):
