@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { CommandPalette } from "@/components/ui/CommandPalette";
@@ -12,6 +12,7 @@ import { Lock } from "lucide-react";
 
 import { checkRouteAccess, getRoleHomeRoute } from "@/lib/permissions";
 import { authApi } from "@/lib/api/auth";
+import { eventsApi } from "@/lib/api/events";
 import { AccessDenied } from "@/components/ui/AccessDenied";
 
 const ORGANIZATION_MANAGEMENT_PREFIXES = [
@@ -35,6 +36,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const router = useRouter();
   const { isMobileSidebarOpen, setMobileSidebarOpen, theme, currentRole, currentUser, currentEvent, setCurrentUser, logout } = useAppStore();
   const [sessionResolved, setSessionResolved] = useState(false);
+  const [eventContextResolved, setEventContextResolved] = useState(false);
+  const eventContextAttempted = useRef<string | null>(null);
   // Hide event-operations chrome only on the Organization Admin landing page.
   const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && pathname === "/dashboard";
 
@@ -75,6 +78,43 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     return () => { active = false; };
   }, [currentUser, setCurrentUser, logout]);
 
+  // Event ID in storage is navigation context only; API authorization still
+  // comes from the validated token and backend assignment checks.
+  useEffect(() => {
+    let active = true;
+    if (!sessionResolved) return () => { active = false; };
+    const eventScopedRoles = new Set(["EVENT_ADMIN", "COORDINATOR", "JUDGE", "VOLUNTEER", "PARTICIPANT", "TECHNICAL_STAFF", "RESOURCE_MANAGER"]);
+    if (!currentUser || !eventScopedRoles.has(currentRole)) {
+      setEventContextResolved(true);
+      return () => { active = false; };
+    }
+    let eventId: string | null = null;
+    try {
+      eventId = localStorage.getItem("eventops_event_id");
+    } catch {
+      eventId = null;
+    }
+    if (!eventId) {
+      setEventContextResolved(true);
+      return () => { active = false; };
+    }
+    if (currentEvent?.id === eventId) {
+      setEventContextResolved(true);
+      return () => { active = false; };
+    }
+    if (eventContextAttempted.current === eventId) {
+      setEventContextResolved(true);
+      return () => { active = false; };
+    }
+    eventContextAttempted.current = eventId;
+    setEventContextResolved(false);
+    eventsApi.getPublicById(eventId)
+      .then((event) => { if (active) setCurrentEvent(event); })
+      .catch(() => { if (active) setCurrentEvent(null); })
+      .finally(() => { if (active) setEventContextResolved(true); });
+    return () => { active = false; };
+  }, [sessionResolved, currentUser, currentRole, currentEvent?.id, setCurrentEvent]);
+
   useEffect(() => {
     const handleExpiredSession = () => {
       logout();
@@ -113,10 +153,10 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   }
 
   // Do not show an unauthenticated state while a stored session is being checked.
-  if (!sessionResolved) {
+  if (!sessionResolved || !eventContextResolved) {
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
-        <p role="status" className="text-sm text-slate-400">Restoring your verified session…</p>
+        <p role="status" className="text-sm text-slate-400">Restoring your verified session and event context…</p>
       </main>
     );
   }
