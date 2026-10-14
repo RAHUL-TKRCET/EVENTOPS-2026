@@ -37,9 +37,10 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const { isMobileSidebarOpen, setMobileSidebarOpen, theme, currentRole, currentUser, currentEvent, setCurrentUser, setCurrentEvent, logout } = useAppStore();
   const [sessionResolved, setSessionResolved] = useState(false);
   const [eventContextResolved, setEventContextResolved] = useState(false);
+  const effectiveRole = currentUser?.role || currentRole;
   const eventContextAttempted = useRef<string | null>(null);
   // Hide event-operations chrome only on the Organization Admin landing page.
-  const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && pathname === "/dashboard";
+  const isOrganizationHome = effectiveRole === "ORGANIZATION_ADMIN" && pathname === "/dashboard";
 
   // Public pages that do not require an active session
   const isPublicPage =
@@ -84,7 +85,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     let active = true;
     if (!sessionResolved) return () => { active = false; };
     const eventScopedRoles = new Set(["EVENT_ADMIN", "COORDINATOR", "JUDGE", "VOLUNTEER", "PARTICIPANT", "TECHNICAL_STAFF", "RESOURCE_MANAGER"]);
-    if (!currentUser || !eventScopedRoles.has(currentRole)) {
+    if (!currentUser || !eventScopedRoles.has(effectiveRole)) {
       setEventContextResolved(true);
       return () => { active = false; };
     }
@@ -113,7 +114,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
       .catch(() => { if (active) setCurrentEvent(null); })
       .finally(() => { if (active) setEventContextResolved(true); });
     return () => { active = false; };
-  }, [sessionResolved, currentUser, currentRole, currentEvent?.id, setCurrentEvent]);
+  }, [sessionResolved, currentUser, effectiveRole, currentEvent?.id, setCurrentEvent]);
 
   useEffect(() => {
     const handleExpiredSession = () => {
@@ -127,13 +128,13 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   useEffect(() => {
     // The shared dashboard is now an Organization Admin landing page only.
     // Redirect legacy bookmarks into the home route for the authenticated role.
-    if (sessionResolved && currentUser && pathname === "/dashboard" && currentRole !== "ORGANIZATION_ADMIN") {
-      const target = currentRole === "EVENT_ADMIN" && currentEvent?.id
+    if (sessionResolved && currentUser && pathname === "/dashboard" && effectiveRole !== "ORGANIZATION_ADMIN") {
+      const target = effectiveRole === "EVENT_ADMIN" && currentEvent?.id
         ? `/events/detail?eventId=${encodeURIComponent(currentEvent.id)}`
         : getRoleHomeRoute(currentRole);
       router.replace(target);
     }
-  }, [sessionResolved, currentUser, pathname, currentRole, currentEvent?.id, router]);
+  }, [sessionResolved, currentUser, pathname, effectiveRole, currentEvent?.id, router]);
 
   useEffect(() => {
     // Ensure dark class is synchronized on html
@@ -189,7 +190,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   }
 
   // Check RBAC permissions for current route
-  const accessCheck = checkRouteAccess(currentRole, pathname);
+  const accessCheck = checkRouteAccess(effectiveRole, pathname);
   const redirectingLegacyDashboard = pathname === "/dashboard" && currentRole !== "ORGANIZATION_ADMIN";
   if (redirectingLegacyDashboard) {
     return <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6"><p role="status" className="text-sm text-slate-400">Opening your role-specific workspace…</p></main>;
