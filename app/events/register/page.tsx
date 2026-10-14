@@ -16,7 +16,7 @@ type PublicRegistrationResult = {
   eventName: string;
   registrationId: string;
   status: string;
-  emailStatus: "sent" | "pending" | "unavailable";
+  emailStatus: "sent" | "pending" | "unavailable" | "existing";
   message: string;
 };
 function classify(error: unknown): Failure {
@@ -30,7 +30,7 @@ export default function EventRegistrationPage() {
   const router = useRouter();
   const params = useSearchParams();
   const eventId = (params.get("eventId") || "").trim();
-  const { setCurrentEvent } = useAppStore();
+  const { currentUser, setCurrentEvent } = useAppStore();
   const [event, setEvent] = useState<EventItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -79,19 +79,33 @@ export default function EventRegistrationPage() {
     setNotice("");
     setFailure(null);
     try {
-      const result = await authApi.registerForPublicEvent({
-        eventId,
-        name,
-        email,
-        phone,
-        organizationOrSchool,
-      });
-      setRegistration(result);
+      if (currentUser?.role?.toUpperCase() === "PARTICIPANT") {
+        // Existing participants can register for this additional event with their
+        // authenticated identity; this never creates a second user or emails a new password.
+        const result = await authApi.registerForEvent(eventId);
+        setRegistration({
+          eventId: result.eventId,
+          eventName: result.eventName,
+          registrationId: result.registrationId,
+          status: result.status,
+          emailStatus: "existing",
+          message: "Your registration is saved using your existing participant account. Continue using your existing login details.",
+        });
+      } else {
+        const result = await authApi.registerForPublicEvent({
+          eventId,
+          name,
+          email,
+          phone,
+          organizationOrSchool,
+        });
+        setRegistration(result);
+      }
     } catch (error) {
       const status = error && typeof error === "object" && "status" in error ? Number((error as {status?: unknown}).status) : undefined;
       const message = error instanceof Error ? error.message : "Registration could not be completed.";
       if (status === 409) {
-        setNotice("We could not complete this registration with the submitted details. If you have registered before or already use EVENTOPS, contact the organizer to safely recover or link your account.");
+        setNotice("We could not complete a new participant account with these details. If you already have an EVENTOPS participant account, sign in below to register for this event. Existing accounts and roles are never changed by a public registration request.");
       } else if (status === 503) {
         setNotice("Registration was not completed because email delivery is not available right now. Your information was not saved; please retry later or contact the organizer.");
       } else {
@@ -120,7 +134,7 @@ export default function EventRegistrationPage() {
           <section role="status" className="space-y-4 rounded-3xl border border-emerald-500/30 bg-slate-900/80 p-6">
             <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-emerald-300" /><div><h2 className="text-lg font-semibold text-white">Registration successful</h2><p className="mt-2 text-sm leading-6 text-slate-300">Your participant space for {registration.eventName} has been created.</p></div></div>
             <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><p className="text-xs text-slate-500">Registration reference</p><p className="mt-1 break-all font-mono text-sm text-slate-200">{registration.registrationId}</p></div>
-            <div className="flex gap-3 rounded-xl border border-sky-500/20 bg-sky-500/5 p-3"><Mail className="h-5 w-5 shrink-0 text-sky-300" /><div><p className="text-sm font-semibold text-white">Login details</p><p className="mt-1 text-sm leading-6 text-slate-300">{registration.message} Check your inbox and spam/junk folder for the EVENTOPS email.</p></div></div>
+            <div className="flex gap-3 rounded-xl border border-sky-500/20 bg-sky-500/5 p-3"><Mail className="h-5 w-5 shrink-0 text-sky-300" /><div><p className="text-sm font-semibold text-white">{registration.emailStatus === "existing" ? "Existing participant account" : "Login details"}</p><p className="mt-1 text-sm leading-6 text-slate-300">{registration.message}{registration.emailStatus === "sent" ? " Check your inbox and spam/junk folder for the EVENTOPS email." : ""}</p></div></div>
             <Button type="button" variant="primary" onClick={() => router.push(`/participant/login?eventId=${encodeURIComponent(eventId)}`)}>Go to participant login <ArrowRight className="ml-2 h-4 w-4" /></Button>
             <Button type="button" variant="outline" onClick={() => router.push(`/events/portal?eventId=${encodeURIComponent(eventId)}`)}><ArrowLeft className="mr-2 h-4 w-4" />Event portal</Button>
           </section>
@@ -140,6 +154,7 @@ export default function EventRegistrationPage() {
                 </Button>
               </form>
             )}
+            {notice.includes("sign in below") && <Button type="button" variant="outline" onClick={() => router.push(`/participant/login?eventId=${encodeURIComponent(eventId)}&email=${encodeURIComponent(email.trim().toLowerCase())}`)}>Sign in to existing participant account <ArrowRight className="ml-2 h-4 w-4" /></Button>}
             <div className="border-t border-slate-800 pt-4"><Button type="button" variant="outline" onClick={() => router.push(`/events/portal?eventId=${encodeURIComponent(eventId)}`)}><ArrowLeft className="mr-2 h-4 w-4" />Event portal</Button></div>
             <p className="text-xs leading-5 text-slate-500">Your credentials are generated securely by the system. Staff assignment and team creation are separate workflows. Existing accounts are never silently overwritten or given a different role.</p>
           </section>
