@@ -12,7 +12,7 @@ export default function ParticipantLoginPage() {
   const router = useRouter();
   const params = useSearchParams();
   const eventId = (params.get("eventId") || "").trim();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(params.get("email") || "");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -26,7 +26,7 @@ export default function ParticipantLoginPage() {
       const session = await authApi.login(email, password, "PARTICIPANT");
       setCurrentUser(session.user);
       setCurrentRole(session.user.role);
-      router.push(eventId ? `/participant?eventId=${encodeURIComponent(eventId)}` : "/participant");
+      router.push(eventId ? `/events/register?eventId=${encodeURIComponent(eventId)}` : "/participant");
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : "Sign-in failed. Check your email and password.");
     } finally {
