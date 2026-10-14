@@ -147,7 +147,7 @@ export default function EventRegistrationPage() {
                 <Input label="Full name" type="text" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={255} required />
                 <Input label="Participant email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
                 <Input label="Phone (optional)" type="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} maxLength={50} />
-                <Input label="College / organization (optional)" type="text" autoComplete="organization" value={organizationOrSchool} onChange={(event) => setOrganizationOrSchool(event.target.value)} maxLength={255} />
+                <Input label="College / organization (optional)" type="text" autoComplete="organization" value={organizationOrSchool} onChange={(event) => setOrganizationOrSchool(event.target.value)} maxLength={100} />
                 <Button type="submit" variant="primary" disabled={busy} isLoading={busy}>
                   {busy ? "Registering and sending login details…" : "Register for this event"}
                   <ArrowRight className="ml-2 h-4 w-4" />
