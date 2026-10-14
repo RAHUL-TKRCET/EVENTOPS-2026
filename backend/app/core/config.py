@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     AI_PROVIDER: str = Field(default="mock", validation_alias="AI_PROVIDER")
     AI_API_KEY: Optional[str] = Field(default=None, validation_alias="AI_API_KEY")
     EMAIL_PROVIDER: str = Field(default="disabled", validation_alias="EMAIL_PROVIDER")
+    PUBLIC_APP_URL: str = Field(default="https://rahul-tkrcet.github.io/EVENTOPS-2026", validation_alias="PUBLIC_APP_URL")
     SMTP_HOST: Optional[str] = Field(default=None, validation_alias="SMTP_HOST")
     SMTP_PORT: int = Field(default=587, validation_alias="SMTP_PORT")
     SMTP_USERNAME: Optional[str] = Field(default=None, validation_alias="SMTP_USERNAME")
