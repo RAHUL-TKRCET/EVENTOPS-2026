@@ -34,7 +34,7 @@ function isOrganizationManagementRoute(pathname: string): boolean {
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const pathname = usePathname();
   const router = useRouter();
-  const { isMobileSidebarOpen, setMobileSidebarOpen, theme, currentRole, currentUser, currentEvent, setCurrentUser, logout } = useAppStore();
+  const { isMobileSidebarOpen, setMobileSidebarOpen, theme, currentRole, currentUser, currentEvent, setCurrentUser, setCurrentEvent, logout } = useAppStore();
   const [sessionResolved, setSessionResolved] = useState(false);
   const [eventContextResolved, setEventContextResolved] = useState(false);
   const eventContextAttempted = useRef<string | null>(null);
