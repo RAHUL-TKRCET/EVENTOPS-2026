@@ -1,8 +1,9 @@
 import uuid
-from datetime import datetime, timezone
+import hashlib
+from datetime import datetime, timedelta, timezone
 import secrets
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.core.config import settings
@@ -160,22 +161,78 @@ def _registration_summary(member: EventMember, event: Event) -> EventRegistratio
 
 
 @router.post("/public-event-registration", response_model=PublicEventRegistrationResponse, status_code=status.HTTP_201_CREATED)
-def public_event_registration(payload: PublicEventRegistrationRequest, db: Session = Depends(get_db)):
+def public_event_registration(
+    payload: PublicEventRegistrationRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     """Register a participant without requiring a prior account or login.
 
-    A temporary credential is emailed only through configured SMTP. If email
-    delivery is unavailable, the transaction is rolled back and no registration
-    is reported as successful.
+    Rate-limit public registration attempts using existing append-only audit rows;
+    send temporary credentials only through configured SMTP. If SMTP is not
+    available, roll back the new user and membership and never report success.
     """
     email = str(payload.email).strip().lower()
     name = payload.name.strip()
     event = db.query(Event).filter(Event.id == payload.eventId).with_for_update().first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found.")
+
+    # Do not trust arbitrary X-Forwarded-For headers here; use the address
+    # provided by the ASGI server. Hash the email for per-address throttling so
+    # attempts are rate-limited without keeping a copy of submitted email data.
+    client_ip = request.client.host if request.client else "unknown"
+    email_digest = hashlib.sha256(email.encode("utf-8")).hexdigest()
+    ip_window = max(1, settings.PUBLIC_REGISTRATION_IP_WINDOW_MINUTES)
+    email_window = max(1, settings.PUBLIC_REGISTRATION_EMAIL_WINDOW_MINUTES)
+    ip_limit = max(1, settings.PUBLIC_REGISTRATION_IP_LIMIT)
+    email_limit = max(1, settings.PUBLIC_REGISTRATION_EMAIL_LIMIT)
+    now = datetime.now(timezone.utc)
+
+    ip_cutoff = now - timedelta(minutes=ip_window)
+    ip_attempts = db.query(AuditLog).filter(
+        AuditLog.action == "PUBLIC_REGISTRATION_ATTEMPT",
+        AuditLog.ip_address == client_ip,
+        AuditLog.created_at >= ip_cutoff,
+    ).count()
+    if ip_attempts >= ip_limit:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many registration attempts from this connection. Wait a while before trying again.",
+            headers={"Retry-After": str(ip_window * 60)},
+        )
+
+    email_cutoff = now - timedelta(minutes=email_window)
+    email_attempts = db.query(AuditLog).filter(
+        AuditLog.action == "PUBLIC_REGISTRATION_ATTEMPT",
+        AuditLog.resource_id == email_digest,
+        AuditLog.created_at >= email_cutoff,
+    ).count()
+    if email_attempts >= email_limit:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many registration attempts were made for these details. Wait a while before trying again.",
+            headers={"Retry-After": str(email_window * 60)},
+        )
+
+    db.add(AuditLog(
+        organization_id=event.organization_id,
+        event_id=event.id,
+        user_id=None,
+        user_role="ANONYMOUS",
+        action="PUBLIC_REGISTRATION_ATTEMPT",
+        resource_type="PublicEventRegistration",
+        resource_id=email_digest,
+        ip_address=client_ip,
+        metadata_json={"source": "public-event-registration", "emailHash": email_digest},
+    ))
+    # Persist the attempt separately so provider failures and business-rule
+    # rejection do not reset the throttle counter.
+    db.commit()
+
     if (event.status or "").strip().upper() != "PUBLISHED":
         raise HTTPException(status_code=409, detail="This event is not published for participant registration.")
 
-    now = datetime.now(timezone.utc)
     deadline = event.registration_deadline
     if deadline and deadline.tzinfo is None:
         deadline = deadline.replace(tzinfo=timezone.utc)
@@ -229,8 +286,6 @@ def public_event_registration(payload: PublicEventRegistrationRequest, db: Sessi
     db.add(member)
     try:
         db.flush()
-        # Deliver before commit so an unavailable SMTP provider cannot leave a
-        # registration that falsely claims credentials were sent.
         send_participant_credentials(email, name, email, temporary_password, event.name, event.id)
         db.add(AuditLog(
             organization_id=event.organization_id,
