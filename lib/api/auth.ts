@@ -130,6 +130,7 @@ export const authApi = {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("eventops_token", authToken);
+        localStorage.removeItem("eventops_event_id");
         if (data.user.organizationId) {
           localStorage.setItem("eventops_org_id", data.user.organizationId);
         } else {
@@ -164,6 +165,7 @@ export const authApi = {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("eventops_token", authToken);
+        localStorage.setItem("eventops_event_id", eventId);
         if (data.user.organizationId) {
           localStorage.setItem("eventops_org_id", data.user.organizationId);
         } else {
@@ -202,6 +204,7 @@ export const authApi = {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("eventops_token", authToken);
+        localStorage.removeItem("eventops_event_id");
         if (res.user.organizationId) {
           localStorage.setItem("eventops_org_id", res.user.organizationId);
         } else {
@@ -273,6 +276,7 @@ export const authApi = {
     const token = session.accessToken || session.token;
     if (typeof window !== "undefined") {
       localStorage.setItem("eventops_token", token);
+      localStorage.setItem("eventops_event_id", eventId);
       if (session.user.organizationId) localStorage.setItem("eventops_org_id", session.user.organizationId);
       else localStorage.removeItem("eventops_org_id");
     }
@@ -341,6 +345,7 @@ export const authApi = {
     if (typeof window !== "undefined") {
       localStorage.removeItem("eventops_token");
       localStorage.removeItem("eventops_org_id");
+      localStorage.removeItem("eventops_event_id");
       sessionStorage.removeItem("eventops_token");
     }
   },
