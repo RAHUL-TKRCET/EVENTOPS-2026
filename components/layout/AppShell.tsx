@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { CommandPalette } from "@/components/ui/CommandPalette";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Lock } from "lucide-react";
 
 import { checkRouteAccess } from "@/lib/permissions";
+import { authApi } from "@/lib/api/auth";
 import { AccessDenied } from "@/components/ui/AccessDenied";
 
 const ORGANIZATION_MANAGEMENT_PREFIXES = [
@@ -32,7 +33,8 @@ function isOrganizationManagementRoute(pathname: string): boolean {
 export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const pathname = usePathname();
   const router = useRouter();
-  const { isMobileSidebarOpen, setMobileSidebarOpen, theme, currentRole, currentUser } = useAppStore();
+  const { isMobileSidebarOpen, setMobileSidebarOpen, theme, currentRole, currentUser, setCurrentUser, logout } = useAppStore();
+  const [sessionResolved, setSessionResolved] = useState(false);
   // Hide event-operations chrome only on the Organization Admin landing page.
   const isOrganizationHome = currentRole === "ORGANIZATION_ADMIN" && pathname === "/dashboard";
 
@@ -46,8 +48,40 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     pathname.startsWith("/verify-otp") ||
     pathname.startsWith("/events/register") ||
     pathname.startsWith("/events/registration-status") ||
-    pathname.startsWith("/events/portal") ||
+    pathname.includes("/portal") ||
+    pathname.startsWith("/invitations/accept") ||
     pathname.endsWith("/login");
+
+  // Zustand starts empty on a hard refresh. Rehydrate only from a persisted
+  // token validated by the backend; never recreate identity from demo data.
+  useEffect(() => {
+    let active = true;
+    if (currentUser) {
+      setSessionResolved(true);
+      return () => { active = false; };
+    }
+    let hasToken = false;
+    try {
+      hasToken = Boolean(localStorage.getItem("eventops_token") || sessionStorage.getItem("eventops_token"));
+    } catch {
+      hasToken = false;
+    }
+    if (!hasToken) {
+      setSessionResolved(true);
+      return () => { active = false; };
+    }
+    setSessionResolved(false);
+    authApi.getMe()
+      .then((user) => { if (active) setCurrentUser(user); })
+      .catch(() => {
+        if (active) {
+          void authApi.logout();
+          logout();
+        }
+      })
+      .finally(() => { if (active) setSessionResolved(true); });
+    return () => { active = false; };
+  }, [currentUser, setCurrentUser, logout]);
 
   useEffect(() => {
     // Ensure dark class is synchronized on html
@@ -62,6 +96,15 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100">
         {children}
+      </main>
+    );
+  }
+
+  // Do not show an unauthenticated state while a stored session is being checked.
+  if (!sessionResolved) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
+        <p role="status" className="text-sm text-slate-400">Restoring your verified session…</p>
       </main>
     );
   }
