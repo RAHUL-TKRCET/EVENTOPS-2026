@@ -38,6 +38,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+function withEventContext(href: string, eventId?: string): string {
+  if (!eventId || href.includes("eventId=")) return href;
+  const path = href.split("?")[0];
+  const globalRoutes = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/verify-otp", "/dashboard", "/events", "/people", "/settings", "/super-admin", "/workspace", "/onboarding", "/organizations", "/personal-events"];
+  if (globalRoutes.some((prefix) => path === prefix || (prefix !== "/" && path.startsWith(`${prefix}/`)))) return href;
+  return `${href}${href.includes("?") ? "&" : "?"}eventId=${encodeURIComponent(eventId)}`;
+}
+
 interface NavItem {
   label: string;
   href: string;
@@ -234,11 +242,13 @@ export const Sidebar: React.FC = () => {
       {/* Navigation Links */}
       <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-1">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+          const href = withEventContext(item.href, currentEvent?.id);
+          const itemPath = href.split("?")[0];
+          const isActive = pathname === itemPath || (itemPath !== "/dashboard" && pathname.startsWith(itemPath));
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={href}
               onClick={() => setMobileSidebarOpen(false)}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all group relative",
