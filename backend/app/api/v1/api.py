@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.core.database import get_db
 from app.api.deps import require_roles, User
-from app.models.entities import Organization, Event, AuditLog
+from app.models.entities import Organization, Event, EventMember, AuditLog
 from app.api.v1.events import _is_platform_admin
 from app.api.v1 import (
     auth,
@@ -43,7 +44,6 @@ def get_super_admin_overview(
 ):
     """Return platform-wide aggregate metrics to an unscoped Super Admin only."""
     if not _is_platform_admin(actor):
-        from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Platform governance requires a global Super Admin session.")
 
     events = db.query(Event.status).all()
@@ -59,12 +59,12 @@ def get_super_admin_overview(
         .all()
     )
     return {
-        "generatedAt": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
         "counts": {
             "organizations": db.query(Organization).count(),
             "users": db.query(User).count(),
             "events": len(events),
-            "eventMembers": db.query(__import__("app.models.entities", fromlist=["EventMember"]).EventMember).count(),
+            "eventMembers": db.query(EventMember).count(),
             "auditRecords": db.query(AuditLog).count(),
         },
         "eventsByStatus": status_counts,
