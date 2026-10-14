@@ -56,6 +56,7 @@ export const Sidebar: React.FC = () => {
     toggleSidebar,
     setMobileSidebarOpen,
     currentUser,
+    currentEvent,
     logout,
   } = useAppStore();
 
@@ -81,7 +82,7 @@ export const Sidebar: React.FC = () => {
     navItems = [
       { label: "Judge Dashboard", href: "/judge", icon: <LayoutDashboard className="w-4 h-4" /> },
       { label: "My Assigned Teams", href: "/judge/teams", icon: <Users className="w-4 h-4" /> },
-      { label: "Evaluation Rubric", href: "/judge/evaluation/T042", icon: <ClipboardCheck className="w-4 h-4" /> },
+      { label: "Evaluation Rubric", href: "/judge/teams", icon: <ClipboardCheck className="w-4 h-4" /> },
       { label: "Evaluation History", href: "/judge/history", icon: <Scale className="w-4 h-4" /> },
       { label: "Scan Team QR", href: "/attendance/scanner", icon: <QrCode className="w-4 h-4" /> },
       { label: "My Profile", href: "/settings/profile", icon: <Settings className="w-4 h-4" /> },
@@ -151,10 +152,10 @@ export const Sidebar: React.FC = () => {
     ];
   } else if (currentRole === "EVENT_ADMIN") {
     navItems = [
-      { label: "Event Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+      { label: "Event Dashboard", href: currentEvent?.id ? `/events/detail?eventId=${encodeURIComponent(currentEvent.id)}` : "/events", icon: <LayoutDashboard className="w-4 h-4" /> },
       { label: "Control Center", href: "/control-center", icon: <Radio className="w-4 h-4" /> },
       { label: "Teams / Participants", href: "/teams", icon: <Users className="w-4 h-4" /> },
-      { label: "Event Roles Delegation", href: "/events/evt-01/roles", icon: <UserPlus className="w-4 h-4" /> },
+      { label: "Event Roles Delegation", href: currentEvent?.id ? `/people?eventId=${encodeURIComponent(currentEvent.id)}` : "/people", icon: <UserPlus className="w-4 h-4" /> },
       { label: "Participant QR Details", href: "/attendance/scanner", icon: <QrCode className="w-4 h-4" /> },
       { label: "Venues & Benches", href: "/venues", icon: <Building className="w-4 h-4" /> },
       { label: "Judges / Evaluators", href: "/judges", icon: <Scale className="w-4 h-4" /> },
@@ -167,7 +168,7 @@ export const Sidebar: React.FC = () => {
       { label: "Communication", href: "/communication", icon: <Megaphone className="w-4 h-4" /> },
       { label: "Analytics & Reports", href: "/analytics/attendance", icon: <BarChart3 className="w-4 h-4" /> },
       { label: "Database Explorer", href: "/database", icon: <Database className="w-4 h-4" /> },
-      { label: "Event Settings", href: "/events/evt-01/settings", icon: <Settings className="w-4 h-4" /> },
+      { label: "Event Settings", href: currentEvent?.id ? `/events/detail?eventId=${encodeURIComponent(currentEvent.id)}` : "/events", icon: <Settings className="w-4 h-4" /> },
     ];
   } else if (currentRole === "ORGANIZATION_ADMIN") {
     // Keep organization-level navigation short. Event operations are scoped inside an event.
