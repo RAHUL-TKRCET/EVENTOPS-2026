@@ -231,36 +231,23 @@ export const authApi = {
     emailStatus: "sent" | "pending" | "unavailable";
     message: string;
   }> {
-    // Public first-time participant registration must not inherit an unrelated
-    // administrator/staff token or organization header from a previous session.
-    const token = typeof window !== "undefined"
-      ? (localStorage.getItem("eventops_token") || sessionStorage.getItem("eventops_token"))
-      : null;
-    const orgId = typeof window !== "undefined" ? localStorage.getItem("eventops_org_id") : null;
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("eventops_token");
-      localStorage.removeItem("eventops_org_id");
-      sessionStorage.removeItem("eventops_token");
-    }
-    try {
-      return await apiRequest("/auth/public-event-registration", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventId: data.eventId,
-          name: data.name.trim(),
-          email: data.email.trim().toLowerCase(),
-          ...(data.phone?.trim() ? { phone: data.phone.trim() } : {}),
-          ...(data.organizationOrSchool?.trim() ? { organizationOrSchool: data.organizationOrSchool.trim() } : {}),
-        }),
-      });
-    } finally {
-      // Do not restore a prior authenticated session to the browser after a
-      // public registration attempt; callers must use the issued participant
-      // credentials through the participant login route.
-      void token;
-      void orgId;
-    }
+    // The endpoint is public and does not use the browser's existing identity.
+    // Explicitly suppress any previously saved authorization/tenant context.
+    return apiRequest("/auth/public-event-registration", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "",
+        "x-organization-id": "",
+      },
+      body: JSON.stringify({
+        eventId: data.eventId,
+        name: data.name.trim(),
+        email: data.email.trim().toLowerCase(),
+        ...(data.phone?.trim() ? { phone: data.phone.trim() } : {}),
+        ...(data.organizationOrSchool?.trim() ? { organizationOrSchool: data.organizationOrSchool.trim() } : {}),
+      }),
+    });
   },
 
   async registerForEvent(eventId: string): Promise<{
