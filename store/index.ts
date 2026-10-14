@@ -264,6 +264,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   logout: () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("eventops_token");
+      localStorage.removeItem("eventops_org_id");
+      localStorage.removeItem("eventops_event_id");
       sessionStorage.removeItem("eventops_token");
     }
     set({
