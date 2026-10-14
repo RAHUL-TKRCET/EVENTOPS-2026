@@ -399,7 +399,7 @@ export function checkRouteAccess(role: UserRole, pathname: string): { authorized
   }
 
   if (pathname === "/dashboard") {
-    const allowedRoles: UserRole[] = ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"];
+    const allowedRoles: UserRole[] = ["ORGANIZATION_ADMIN"];
     return { authorized: allowedRoles.includes(role), allowedRoles };
   }
   return { authorized: false, allowedRoles: [] };
