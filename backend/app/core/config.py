@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     REDIS_URL: Optional[str] = Field(default="redis://localhost:6379", validation_alias="REDIS_URL")
     AI_PROVIDER: str = Field(default="mock", validation_alias="AI_PROVIDER")
     AI_API_KEY: Optional[str] = Field(default=None, validation_alias="AI_API_KEY")
+    EMAIL_PROVIDER: str = Field(default="disabled", validation_alias="EMAIL_PROVIDER")
+    SMTP_HOST: Optional[str] = Field(default=None, validation_alias="SMTP_HOST")
+    SMTP_PORT: int = Field(default=587, validation_alias="SMTP_PORT")
+    SMTP_USERNAME: Optional[str] = Field(default=None, validation_alias="SMTP_USERNAME")
+    SMTP_PASSWORD: Optional[str] = Field(default=None, validation_alias="SMTP_PASSWORD")
+    SMTP_FROM_EMAIL: Optional[str] = Field(default=None, validation_alias="SMTP_FROM_EMAIL")
+    SMTP_USE_TLS: bool = Field(default=True, validation_alias="SMTP_USE_TLS")
+    PUBLIC_REGISTRATION_ACTIVATION_TTL_MINUTES: int = Field(default=60, validation_alias="PUBLIC_REGISTRATION_ACTIVATION_TTL_MINUTES")
 
     @model_validator(mode="after")
     def validate_runtime_security(self):
