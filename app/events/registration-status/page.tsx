@@ -41,7 +41,6 @@ export default function EventRegistrationStatusPage() {
   const [registration, setRegistration] = useState<RegistrationStatus | null>(null);
   const [pageState, setPageState] = useState<PageState>("loading");
   const [loadingRegistration, setLoadingRegistration] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [registrationError, setRegistrationError] = useState("");
 
   const refreshRegistration = useCallback(async () => {
@@ -51,6 +50,12 @@ export default function EventRegistrationStatusPage() {
     }
     setLoadingRegistration(true);
     try {
+      const user = await authApi.getMe();
+      if (user.role?.toUpperCase() !== "PARTICIPANT") {
+        setRegistration(null);
+        setRegistrationError("");
+        return;
+      }
       const result = await authApi.getEventRegistration(eventId);
       setRegistration(result);
       setRegistrationError("");
@@ -88,19 +93,7 @@ export default function EventRegistrationStatusPage() {
     : "/events");
   const goToRegistration = () => router.push(`/events/register?eventId=${encodeURIComponent(eventId)}`);
 
-  const handleRegister = async () => {
-    setBusy(true);
-    setRegistrationError("");
-    try {
-      await authApi.registerForEvent(eventId);
-      await refreshRegistration();
-      router.replace(`/events/registration-status?eventId=${encodeURIComponent(eventId)}&state=registered`);
-    } catch (error) {
-      setRegistrationError(error instanceof Error ? error.message : "Event registration could not be completed. Please retry.");
-    } finally {
-      setBusy(false);
-    }
-  };
+
 
   if (pageState === "loading") {
     return <main className="flex min-h-screen items-center justify-center bg-slate-950 p-6 text-slate-100"><LoaderCircle className="mr-3 h-5 w-5 animate-spin text-indigo-300" /><p className="text-sm text-slate-300">Checking event details…</p></main>;
@@ -129,7 +122,7 @@ export default function EventRegistrationStatusPage() {
           {isRegistered ? (
             <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-emerald-300" /><div><h2 className="text-lg font-semibold text-white">Registration confirmed</h2><p className="mt-2 text-sm leading-6 text-slate-300">You are registered for {event.name}. Registration ID: <span className="font-mono">{registration?.registrationId}</span>. This does not automatically create a team or project.</p><p className="mt-2 text-xs text-slate-500">Status: {registration?.status}. Confirmed by the event registration API.</p></div></div>
           ) : accountCreated ? (
-            <div className="flex items-start gap-3"><CircleAlert className="mt-0.5 h-6 w-6 shrink-0 text-amber-300" /><div><h2 className="text-lg font-semibold text-white">Account created — event enrollment is not complete</h2><p className="mt-2 text-sm leading-6 text-slate-300">Your account exists, but there is no confirmed enrollment for {event.name}. Register below to create the event-specific membership.</p></div></div>
+            <div className="flex items-start gap-3"><CircleAlert className="mt-0.5 h-6 w-6 shrink-0 text-amber-300" /><div><h2 className="text-lg font-semibold text-white">Registration is not complete</h2><p className="mt-2 text-sm leading-6 text-slate-300">There is no confirmed enrollment for {event.name}. Use the public registration form to create your participant space and event membership.</p></div></div>
           ) : (
             <div><h2 className="text-lg font-semibold text-white">Register for {event.name}</h2><p className="mt-2 text-sm leading-6 text-slate-300">Submit the public registration form without signing in. The system creates your participant space and emails your login details.</p></div>
           )}
@@ -140,7 +133,7 @@ export default function EventRegistrationStatusPage() {
           {registrationError && <Button variant="outline" onClick={() => void refreshRegistration()}><RefreshCw className="mr-2 h-4 w-4" />Retry status check</Button>}
           <div className="flex flex-wrap gap-3">
             {isRegistered && <Button variant="primary" onClick={() => router.push(`/participant?eventId=${encodeURIComponent(event.id)}`)}>Open participant workspace <ArrowRight className="ml-2 h-4 w-4" /></Button>}
-            {!isRegistered && getToken() && registrationOpen && <Button variant="primary" disabled={busy || loadingRegistration} onClick={() => void handleRegister()}>{busy ? "Registering…" : "Complete event registration"} <ArrowRight className="ml-2 h-4 w-4" /></Button>}
+            
             {!isRegistered && registrationOpen && <Button variant="primary" onClick={goToRegistration}>Register for this event <ArrowRight className="ml-2 h-4 w-4" /></Button>}
             {!isRegistered && getToken() && !registrationOpen && <Button variant="outline" onClick={() => router.push(`/participant/login?eventId=${encodeURIComponent(event.id)}`)}>Open participant login</Button>}
             <Button variant="outline" onClick={backToPortal}><ArrowLeft className="mr-2 h-4 w-4" />Back to event portal</Button>
