@@ -76,6 +76,15 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   }, [currentUser, setCurrentUser, logout]);
 
   useEffect(() => {
+    const handleExpiredSession = () => {
+      logout();
+      if (pathname !== "/login" && !pathname.startsWith("/login/")) router.replace("/login");
+    };
+    window.addEventListener("eventops:session-expired", handleExpiredSession);
+    return () => window.removeEventListener("eventops:session-expired", handleExpiredSession);
+  }, [logout, pathname, router]);
+
+  useEffect(() => {
     // The shared dashboard is now an Organization Admin landing page only.
     // Redirect legacy bookmarks into the home route for the authenticated role.
     if (sessionResolved && currentUser && pathname === "/dashboard" && currentRole !== "ORGANIZATION_ADMIN") {
