@@ -189,7 +189,7 @@ export const ROUTE_ACCESS_RULES: { prefix: string; allowedRoles: UserRole[]; exa
   // Database Explorer
   {
     prefix: "/database",
-    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"],
+    allowedRoles: ["SUPER_ADMIN"],
   },
   // Evaluations oversight for admins vs individual judge scoring terminal
   {
