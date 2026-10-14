@@ -114,3 +114,29 @@ def test_profile_update_rejects_duplicate_email_without_changing_user():
         assert saved.phone is None
     finally:
         _cleanup(client)
+
+
+
+def test_get_me_returns_active_event_role_and_organization_scope():
+    user = User(
+        id=f"usr-{uuid.uuid4().hex[:8]}",
+        name="Assigned Judge",
+        email=f"judge-{uuid.uuid4().hex[:8]}@example.com",
+        password_hash="not-used",
+        role="PARTICIPANT",
+        organization_id="org-account",
+    )
+    # These attributes are verified by get_current_user from the access JWT,
+    # not persisted user-controlled profile fields.
+    user.active_role = "JUDGE"
+    user.active_event_id = "event-assigned"
+    user.active_organization_id = "org-event"
+    client = _client_for(user)
+    try:
+        response = client.get("/api/v1/auth/me")
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["role"] == "JUDGE"
+        assert body["organizationId"] == "org-event"
+    finally:
+        _cleanup(client)
