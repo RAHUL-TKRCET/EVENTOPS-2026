@@ -4,6 +4,7 @@ Volunteers can view and advance only tasks assigned to their own volunteer
 record in the event bound to their authenticated session.
 """
 from datetime import datetime, timezone
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException
@@ -71,6 +72,34 @@ def _require_task_manager(db: Session, actor: User, event_id: str) -> Event:
     from app.api.v1.events import require_event_scope
     require_event_scope(event, actor)
     return event
+
+
+
+@router.get("")
+def list_event_volunteers(
+    eventId: str,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+):
+    """List active volunteers for authorized task assignment in one event."""
+    _require_task_manager(db, actor, eventId)
+    rows = db.query(Volunteer).filter(
+        Volunteer.event_id == eventId,
+        Volunteer.status == "ACTIVE",
+    ).order_by(Volunteer.name.asc()).all()
+    return [
+        {
+            "id": row.id,
+            "eventId": row.event_id,
+            "userId": row.user_id,
+            "name": row.name,
+            "email": row.email,
+            "role": row.role,
+            "zone": row.zone,
+            "status": row.status,
+        }
+        for row in rows
+    ]
 
 
 @router.get("/tasks")
