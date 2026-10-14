@@ -131,7 +131,7 @@ export default function EventRegistrationStatusPage() {
           ) : accountCreated ? (
             <div className="flex items-start gap-3"><CircleAlert className="mt-0.5 h-6 w-6 shrink-0 text-amber-300" /><div><h2 className="text-lg font-semibold text-white">Account created — event enrollment is not complete</h2><p className="mt-2 text-sm leading-6 text-slate-300">Your account exists, but there is no confirmed enrollment for {event.name}. Register below to create the event-specific membership.</p></div></div>
           ) : (
-            <div><h2 className="text-lg font-semibold text-white">Continue with {event.name}</h2><p className="mt-2 text-sm leading-6 text-slate-300">Sign in or create an account, then complete the event-specific registration. Event ID alone does not grant access.</p></div>
+            <div><h2 className="text-lg font-semibold text-white">Register for {event.name}</h2><p className="mt-2 text-sm leading-6 text-slate-300">Submit the public registration form without signing in. The system creates your participant space and emails your login details.</p></div>
           )}
           {event.status?.toUpperCase() !== "PUBLISHED" && <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">This event is currently {event.status || "not published"}. New participant registration is available only for published events.</p>}
           {event.status?.toUpperCase() === "PUBLISHED" && !registrationOpen && <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">The registration deadline has passed or is not configured. Existing registration status can still be checked, but new enrollments are closed.</p>}
@@ -141,8 +141,8 @@ export default function EventRegistrationStatusPage() {
           <div className="flex flex-wrap gap-3">
             {isRegistered && <Button variant="primary" onClick={() => router.push(`/participant?eventId=${encodeURIComponent(event.id)}`)}>Open participant workspace <ArrowRight className="ml-2 h-4 w-4" /></Button>}
             {!isRegistered && getToken() && registrationOpen && <Button variant="primary" disabled={busy || loadingRegistration} onClick={() => void handleRegister()}>{busy ? "Registering…" : "Complete event registration"} <ArrowRight className="ml-2 h-4 w-4" /></Button>}
-            {!isRegistered && registrationOpen && <Button variant="primary" onClick={goToRegistration}>Sign in or create account <ArrowRight className="ml-2 h-4 w-4" /></Button>}
-            {!isRegistered && getToken() && !registrationOpen && <Button variant="outline" onClick={() => router.push(`/events/login?eventId=${encodeURIComponent(event.id)}&role=PARTICIPANT`)}>Sign in to another account</Button>}
+            {!isRegistered && registrationOpen && <Button variant="primary" onClick={goToRegistration}>Register for this event <ArrowRight className="ml-2 h-4 w-4" /></Button>}
+            {!isRegistered && getToken() && !registrationOpen && <Button variant="outline" onClick={() => router.push(`/participant/login?eventId=${encodeURIComponent(event.id)}`)}>Open participant login</Button>}
             <Button variant="outline" onClick={backToPortal}><ArrowLeft className="mr-2 h-4 w-4" />Back to event portal</Button>
           </div>
           <p className="text-xs leading-5 text-slate-500">Event registrations are stored separately per event. A registration is confirmed only after the backend returns an active registration record. Team setup is a separate step.</p>
