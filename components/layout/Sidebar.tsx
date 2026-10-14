@@ -33,7 +33,6 @@ import {
   Sparkles,
   Clock,
   LogOut,
-  Database,
   UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -174,7 +173,6 @@ export const Sidebar: React.FC = () => {
       { label: "Incidents Escalation", href: "/incidents", icon: <AlertTriangle className="w-4 h-4" /> },
       { label: "Communication", href: "/communication", icon: <Megaphone className="w-4 h-4" /> },
       { label: "Analytics & Reports", href: "/analytics/attendance", icon: <BarChart3 className="w-4 h-4" /> },
-      { label: "Database Explorer", href: "/database", icon: <Database className="w-4 h-4" /> },
       { label: "Event Settings", href: currentEvent?.id ? `/events/detail?eventId=${encodeURIComponent(currentEvent.id)}` : "/events", icon: <Settings className="w-4 h-4" /> },
     ];
   } else if (currentRole === "ORGANIZATION_ADMIN") {
