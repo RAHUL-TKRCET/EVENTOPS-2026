@@ -108,7 +108,7 @@ export const Sidebar: React.FC = () => {
       { label: "My Allocation", href: "/participant/allocation", icon: <Building className="w-4 h-4" /> },
       { label: "Announcements", href: "/participant/announcements", icon: <Megaphone className="w-4 h-4" /> },
       { label: "Leaderboard & Results", href: "/participant/results", icon: <Trophy className="w-4 h-4" /> },
-      { label: "My Profile", href: "/participant/profile", icon: <Settings className="w-4 h-4" /> },
+      { label: "My Profile", href: "/settings/profile", icon: <Settings className="w-4 h-4" /> },
     ];
   } else if (currentRole === "TECHNICAL_STAFF") {
     navItems = [
@@ -134,7 +134,7 @@ export const Sidebar: React.FC = () => {
     ];
   } else if (currentRole === "COORDINATOR") {
     navItems = [
-      { label: "Operations Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+      { label: "Operations Dashboard", href: "/control-center", icon: <LayoutDashboard className="w-4 h-4" /> },
       { label: "Control Center", href: "/control-center", icon: <Radio className="w-4 h-4" /> },
       { label: "Teams", href: "/teams", icon: <Users className="w-4 h-4" /> },
       { label: "QR Check-in Scanner", href: "/attendance/scanner", icon: <QrCode className="w-4 h-4" /> },
