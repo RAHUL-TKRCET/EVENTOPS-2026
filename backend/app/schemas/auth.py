@@ -20,6 +20,7 @@ class UserResponse(BaseModel):
     email: str
     role: str
     organizationId: Optional[str] = None
+    phone: Optional[str] = None
     createdAt: Optional[str] = None
 
     model_config = {"from_attributes": True}
@@ -129,3 +130,9 @@ class PublicEventRegistrationResponse(BaseModel):
     createdAt: Optional[str] = None
     emailStatus: Literal["sent", "pending", "unavailable"]
     message: str
+
+
+class ProfileUpdateRequest(BaseModel):
+    """Fields the signed-in user may update on their own profile."""
+    name: str = Field(min_length=2, max_length=255)
+    phone: Optional[str] = Field(default=None, max_length=50)
