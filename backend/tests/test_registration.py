@@ -714,3 +714,22 @@ def test_public_event_registration_never_overwrites_existing_account(client, mon
         assert db.query(EventMember).filter(EventMember.event_id == event_id, EventMember.email == user_email).count() == 0
     finally:
         db.close()
+
+
+def test_public_event_registration_rate_limits_repeated_attempts(client, monkeypatch):
+    event_id = _published_event_for_public_registration(client)
+    monkeypatch.setattr(settings, "PUBLIC_REGISTRATION_IP_LIMIT", 1)
+    monkeypatch.setattr(auth_module, "send_participant_credentials", lambda *_args, **_kwargs: None)
+
+    first = client.post("/api/v1/auth/public-event-registration", json={
+        "eventId": event_id, "name": "First Public Participant",
+        "email": f"first-{uuid.uuid4().hex[:10]}@example.com",
+    })
+    assert first.status_code == 201, first.text
+
+    second = client.post("/api/v1/auth/public-event-registration", json={
+        "eventId": event_id, "name": "Second Public Participant",
+        "email": f"second-{uuid.uuid4().hex[:10]}@example.com",
+    })
+    assert second.status_code == 429, second.text
+    assert "Retry-After" in second.headers
