@@ -66,7 +66,7 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
   EVENT_ADMIN: {
     role: "EVENT_ADMIN",
     label: "Event Admin",
-    portalPath: "/dashboard",
+    portalPath: "/events",
     description: "End-to-end event operations, scheduling, teams, and oversight",
     badge: "Director of Ops",
     color: "text-sky-400 bg-sky-500/10 border-sky-500/30",
@@ -82,7 +82,7 @@ export const ROLE_CONFIGS: Record<UserRole, RoleConfig> = {
   COORDINATOR: {
     role: "COORDINATOR",
     label: "Coordinator",
-    portalPath: "/dashboard",
+    portalPath: "/control-center",
     description: "Live floor management, attendance monitoring, and rapid resolution",
     badge: "Floor Lead",
     color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
@@ -263,6 +263,14 @@ export const ROUTE_ACCESS_RULES: { prefix: string; allowedRoles: UserRole[]; exa
     allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN"],
   },
   {
+    prefix: "/settings/profile",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "JUDGE", "VOLUNTEER", "PARTICIPANT", "TECHNICAL_STAFF", "RESOURCE_MANAGER"],
+  },
+  {
+    prefix: "/settings/notifications",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"],
+  },
+  {
     prefix: "/settings/roles",
     allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"],
   },
@@ -322,51 +330,71 @@ export const ROUTE_ACCESS_RULES: { prefix: string; allowedRoles: UserRole[]; exa
     prefix: "/events",
     allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"],
   },
+  {
+    prefix: "/incidents",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "VOLUNTEER", "TECHNICAL_STAFF"],
+  },
+  {
+    prefix: "/communication",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "VOLUNTEER", "TECHNICAL_STAFF", "RESOURCE_MANAGER"],
+  },
+  {
+    prefix: "/rounds",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR"],
+  },
+  {
+    prefix: "/venues",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "TECHNICAL_STAFF"],
+  },
+  {
+    prefix: "/people",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"],
+  },
+  {
+    prefix: "/organizations",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN"],
+  },
+  {
+    prefix: "/personal-events",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN"],
+  },
+  {
+    prefix: "/invitations/accept",
+    allowedRoles: ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR", "JUDGE", "VOLUNTEER", "TECHNICAL_STAFF", "RESOURCE_MANAGER", "PARTICIPANT"],
+  },
 ];
 
 /**
- * Checks whether a given role is authorized to access a given URL path.
+ * Public routes do not imply API access. Authenticated internal routes must
+ * match an explicit role rule; unknown routes fail closed.
  */
+const PUBLIC_ROUTE_PREFIXES = [
+  "/login", "/register", "/forgot-password", "/reset-password", "/verify-otp",
+  "/events/register", "/events/registration-status", "/events/portal", "/events/login",
+  "/invitations/accept", "/onboarding", "/workspace", "/organizations/create", "/organizations/join",
+] as const;
+
 export function checkRouteAccess(role: UserRole, pathname: string): { authorized: boolean; allowedRoles?: UserRole[] } {
-  // Public / Open Workspace routes always allowed
-  if (
-    pathname === "/" ||
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/register") ||
-    pathname.startsWith("/forgot-password") ||
-    pathname.startsWith("/reset-password") ||
-    pathname.startsWith("/verify-otp") ||
-    pathname.startsWith("/events/register") ||
-    pathname.startsWith("/events/registration-status") ||
-    pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/workspace") ||
-    pathname.startsWith("/organizations") ||
-    pathname.startsWith("/personal-events") ||
-    pathname.includes("/portal") ||
-    pathname.endsWith("/login")
-  ) {
+  if (pathname === "/" || PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
     return { authorized: true };
   }
+  // Compatibility aliases for legacy dynamic event links; APIs still scope access.
+  if (/^\/events\/[^/]+\/(portal|login)$/.test(pathname)) return { authorized: true };
 
-  // Check matching rules
-  for (const rule of ROUTE_ACCESS_RULES) {
-    if (pathname.startsWith(rule.prefix)) {
-      if (rule.allowedRoles.includes(role)) {
-        return { authorized: true, allowedRoles: rule.allowedRoles };
-      }
-      return { authorized: false, allowedRoles: rule.allowedRoles };
-    }
+  const rule = ROUTE_ACCESS_RULES
+    .filter((candidate) => pathname === candidate.prefix || pathname.startsWith(`${candidate.prefix}/`))
+    .sort((a, b) => b.prefix.length - a.prefix.length)[0];
+  if (rule) {
+    return rule.allowedRoles.includes(role)
+      ? { authorized: true, allowedRoles: rule.allowedRoles }
+      : { authorized: false, allowedRoles: rule.allowedRoles };
   }
 
-  // Restricted base dashboard: non-admins must go to their specific portal
   if (pathname === "/dashboard") {
-    const adminRoles: UserRole[] = ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN", "COORDINATOR"];
-    if (!adminRoles.includes(role)) {
-      return { authorized: false, allowedRoles: adminRoles };
-    }
+    const allowedRoles: UserRole[] = ["SUPER_ADMIN", "ORGANIZATION_ADMIN", "EVENT_ADMIN"];
+    return { authorized: allowedRoles.includes(role), allowedRoles };
   }
-
-  return { authorized: true };
+  return { authorized: false, allowedRoles: [] };
 }
 
 /**
