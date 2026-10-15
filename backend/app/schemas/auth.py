@@ -135,4 +135,5 @@ class PublicEventRegistrationResponse(BaseModel):
 class ProfileUpdateRequest(BaseModel):
     """Fields the signed-in user may update on their own profile."""
     name: str = Field(min_length=2, max_length=255)
+    email: EmailStr
     phone: Optional[str] = Field(default=None, max_length=50)
