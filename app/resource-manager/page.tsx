@@ -1,232 +1,91 @@
 "use client";
 
-import React, { useState } from "react";
-import { DemoModeNotice } from "@/components/ui/DemoModeNotice";
-import { useRouter } from "next/navigation";
-import { KPICard } from "@/components/ui/KPICard";
-import { StatusBadge } from "@/components/ui/Badge";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useAppStore } from "@/store";
 import { Button } from "@/components/ui/Button";
-import { mockResources } from "@/lib/mock-data/resources";
+import { resourcesApi, ApiResourceItem } from "@/lib/api/resources";
 import {
-  Box,
-  Utensils,
-  Trophy,
-  ShieldCheck,
-  QrCode,
-  AlertTriangle,
+  AlertCircle,
   ArrowRight,
-  CheckCircle2,
-  Clock,
-  Layers,
+  Box,
+  LoaderCircle,
+  PackageCheck,
+  RefreshCw,
+  Utensils,
 } from "lucide-react";
 
 export default function ResourceManagerDashboardPage() {
-  const router = useRouter();
+  const params = useSearchParams();
+  const { currentEvent } = useAppStore();
+  const eventId = (params.get("eventId") || currentEvent?.id || "").trim();
+  const [items, setItems] = useState<ApiResourceItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const [mealsServed, setMealsServed] = useState(240);
-  const totalMeals = 360;
-  const kitsDistributed = 112;
-  const totalKits = 120;
-  const badgesPrinted = 480;
+  const load = useCallback(async () => {
+    if (!eventId) {
+      setItems([]);
+      setError("No event is selected. Sign in through the event-specific login link to access inventory.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      setItems(await resourcesApi.getAll(eventId));
+    } catch (requestError) {
+      setItems([]);
+      setError(requestError instanceof Error ? requestError.message : "Inventory could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const totalQuantity = useMemo(() => items.reduce((sum, item) => sum + item.totalQuantity, 0), [items]);
+  const distributedQuantity = useMemo(() => items.reduce((sum, item) => sum + item.distributedQuantity, 0), [items]);
+  const remainingQuantity = useMemo(() => items.reduce((sum, item) => sum + Math.max(0, item.totalQuantity - item.distributedQuantity), 0), [items]);
+  const lowStockCount = useMemo(() => items.filter((item) => item.totalQuantity > 0 && item.totalQuantity - item.distributedQuantity <= Math.max(1, Math.floor(item.totalQuantity * 0.1))).length, [items]);
 
   return (
-    <div className="space-y-6">
-      <DemoModeNotice />
-      {/* Header */}
-      <div className="p-6 rounded-3xl border border-rose-500/20 bg-gradient-to-r from-rose-950/30 via-slate-900 to-slate-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <main className="space-y-6">
+      <header className="flex flex-col gap-4 rounded-3xl border border-rose-500/20 bg-gradient-to-r from-rose-950/30 via-slate-900 to-slate-950 p-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs font-bold text-rose-400 uppercase tracking-wider bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-              Resource Operations Command
-            </span>
-            <StatusBadge status="ACTIVE" />
-          </div>
-          <h1 className="text-2xl font-bold font-mono text-white mt-1">
-            Resource & Distribution Management
-          </h1>
-          <p className="text-xs text-slate-400">
-            Catering dispatch, dietary meal verification, swag kit issuance, and digital badge logistics
-          </p>
+          <p className="font-mono text-xs font-bold uppercase tracking-wider text-rose-300">Resource Manager</p>
+          <h1 className="mt-2 text-2xl font-bold text-white">{currentEvent?.name || "Event inventory"}</h1>
+          <p className="mt-2 text-sm text-slate-400">Counts come from persisted event inventory. No sample totals are shown.</p>
+          {eventId && <p className="mt-1 font-mono text-xs text-slate-600">Event ID: {eventId}</p>}
         </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            variant="primary"
-            size="md"
-            leftIcon={<QrCode className="w-4 h-4" />}
-            onClick={() => router.push("/resource-manager/distribution")}
-          >
-            Launch Distribution Scanner
-          </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" disabled={loading} onClick={() => void load()}>{loading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Refresh</Button>
+          <Link href={eventId ? `/resource-manager/distribution?eventId=${encodeURIComponent(eventId)}` : "/resource-manager/distribution"} className="inline-flex items-center rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-500">Open distribution <ArrowRight className="ml-2 h-4 w-4" /></Link>
         </div>
-      </div>
+      </header>
 
-      {/* Role Scoping Notice */}
-      <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-300 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <ShieldCheck className="w-4 h-4 text-rose-400 shrink-0" />
-          <span>
-            Resource Manager Clearance: You have permissions over inventory tracking, meal tokens, kit distribution, and badges. Team scoring and optimization are restricted.
-          </span>
-        </div>
-        <span className="font-mono text-[10px] text-slate-500">INVENTORY AUDITED</span>
-      </div>
+      {error && <div role="alert" className="flex gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200"><AlertCircle className="h-5 w-5 shrink-0" /><p>{error}</p></div>}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <KPICard
-          title="Lunch Meals Served"
-          value={`${mealsServed} / ${totalMeals}`}
-          accentColor="emerald"
-          subtitle={`${Math.round((mealsServed / totalMeals) * 100)}% Consumed`}
-          icon={<Utensils className="w-4 h-4 text-emerald-400" />}
-        />
-        <KPICard
-          title="Swag Kits Claimed"
-          value={`${kitsDistributed} / ${totalKits}`}
-          accentColor="sky"
-          subtitle="8 Pending Pickup"
-          icon={<Box className="w-4 h-4 text-sky-400" />}
-        />
-        <KPICard
-          title="Badges Issued"
-          value={badgesPrinted}
-          accentColor="indigo"
-          subtitle="100% Verification"
-          icon={<ShieldCheck className="w-4 h-4 text-indigo-400" />}
-        />
-        <KPICard
-          title="Low Stock Alerts"
-          value="1 Item"
-          accentColor="amber"
-          subtitle="Hardware Pis (Pool)"
-          icon={<AlertTriangle className="w-4 h-4 text-amber-400" />}
-        />
-      </div>
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4"><div className="flex items-center gap-2 text-sm text-slate-400"><Box className="h-4 w-4" />Inventory records</div><p className="mt-2 text-2xl font-bold text-white">{loading ? "…" : items.length}</p></div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4"><div className="flex items-center gap-2 text-sm text-slate-400"><PackageCheck className="h-4 w-4" />Total quantity</div><p className="mt-2 text-2xl font-bold text-white">{loading ? "…" : totalQuantity}</p></div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4"><div className="flex items-center gap-2 text-sm text-slate-400"><Utensils className="h-4 w-4" />Distributed quantity</div><p className="mt-2 text-2xl font-bold text-sky-200">{loading ? "…" : distributedQuantity}</p></div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4"><p className="text-sm text-slate-400">Available / low stock</p><p className="mt-2 text-2xl font-bold text-emerald-200">{loading ? "…" : remainingQuantity}</p><p className="mt-1 text-xs text-amber-300">{loading ? "Calculating…" : `${lowStockCount} low-stock item(s)`}</p></div>
+      </section>
 
-      {/* Quick Navigation Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4 flex flex-col justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-emerald-400 text-xs font-mono font-bold uppercase">
-              <Utensils className="w-4 h-4" />
-              <span>Catering & Meals</span>
-            </div>
-            <h3 className="text-base font-bold text-white">Dietary Distribution</h3>
-            <p className="text-xs text-slate-400">
-              Track real-time scans across Veg, Non-Veg, Jain, and Vegan counters at Dining Hall B.
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full mt-2"
-            onClick={() => router.push("/resource-manager/meals")}
-            rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-          >
-            Manage Meals
-          </Button>
-        </div>
+      {loading && <div role="status" className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 p-5 text-sm text-slate-300"><LoaderCircle className="h-5 w-5 animate-spin" />Loading inventory…</div>}
+      {!loading && !error && items.length === 0 && <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center"><Box className="mx-auto h-8 w-8 text-rose-300" /><h2 className="mt-3 font-semibold text-white">No inventory configured</h2><p className="mt-2 text-sm text-slate-400">The selected event has no inventory records yet.</p></div>}
 
-        <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4 flex flex-col justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-indigo-400 text-xs font-mono font-bold uppercase">
-              <Box className="w-4 h-4" />
-              <span>Swag Kits & Badges</span>
-            </div>
-            <h3 className="text-base font-bold text-white">Attendee Kit Issuance</h3>
-            <p className="text-xs text-slate-400">
-              Audit check-ins, hoodie sizes, welcome lanyards, and hardware development kits.
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full mt-2"
-            onClick={() => router.push("/resource-manager/badges")}
-            rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-          >
-            Manage Badges & Kits
-          </Button>
-        </div>
-
-        <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/80 space-y-4 flex flex-col justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-purple-400 text-xs font-mono font-bold uppercase">
-              <Trophy className="w-4 h-4" />
-              <span>Certificates & Prizes</span>
-            </div>
-            <h3 className="text-base font-bold text-white">Award Generation</h3>
-            <p className="text-xs text-slate-400">
-              Batch generate cryptographic verification certificates for finalists and participants.
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full mt-2"
-            onClick={() => router.push("/resource-manager/certificates")}
-            rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-          >
-            Issue Certificates
-          </Button>
-        </div>
-      </div>
-
-      {/* Inventory Health Table */}
-      <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900/80 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold font-mono text-white uppercase tracking-wider">
-            Live Inventory Health
-          </h3>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => router.push("/resources/inventory")}
-          >
-            All Inventory Items →
-          </Button>
-        </div>
-
-        <div className="divide-y divide-slate-800 text-xs">
-          {mockResources.slice(0, 5).map((res) => {
-            const pct = Math.round((res.consumedQuantity / res.totalQuantity) * 100);
-
-            return (
-              <div key={res.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-white">{res.name}</span>
-                    <StatusBadge status={res.status} />
-                  </div>
-                  <div className="text-[11px] text-slate-400 font-mono">
-                    Category: {res.category} • Location: {res.location}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-6">
-                  <div className="text-right">
-                    <span className="font-mono text-slate-300 font-semibold">
-                      {res.consumedQuantity} / {res.totalQuantity} {res.unit}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono block">
-                      {pct}% Claimed
-                    </span>
-                  </div>
-                  <div className="w-24 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                    <div
-                      className={`h-full rounded-full ${
-                        pct > 80 ? "bg-amber-400" : "bg-indigo-500"
-                      }`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
+      <section className="space-y-3">
+        {items.map((item) => {
+          const remaining = Math.max(0, item.totalQuantity - item.distributedQuantity);
+          const status = remaining === 0 ? "DEPLETED" : remaining <= Math.max(1, Math.floor(item.totalQuantity * 0.1)) ? "LOW STOCK" : "IN STOCK";
+          return <article key={item.id} className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div><div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-white">{item.itemName}</h2><span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${remaining === 0 ? "border-rose-500/30 text-rose-300" : status === "LOW STOCK" ? "border-amber-500/30 text-amber-300" : "border-emerald-500/30 text-emerald-300"}`}>{status}</span></div><p className="mt-1 text-sm text-slate-400">{item.category} · {item.id}</p></div>
+            <div className="text-left sm:text-right"><p className="text-lg font-semibold text-white">{remaining} / {item.totalQuantity} <span className="text-sm font-normal text-slate-400">{item.unit} remaining</span></p><p className="mt-1 text-xs text-slate-500">{item.distributedQuantity} distributed</p></div>
+          </article>;
+        })}
+      </section>
+    </main>
   );
 }
