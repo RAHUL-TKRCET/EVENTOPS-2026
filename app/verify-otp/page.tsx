@@ -1,70 +1,35 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { authApi } from "@/lib/api/auth";
-import { ShieldCheck, ArrowRight } from "lucide-react";
+import { ShieldCheck, AlertTriangle } from "lucide-react";
 
 export default function VerifyOtpPage() {
-  const router = useRouter();
-  const [otp, setOtp] = useState(["8", "4", "2", "1", "9", "0"]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [message, setMessage] = useState("");
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    await authApi.verifyOtp("user@example.com", otp.join(""));
-    setIsLoading(false);
-    router.push("/reset-password");
-  };
-
-  const handleDigitChange = (index: number, val: string) => {
-    if (val.length > 1) val = val[val.length - 1];
-    const newOtp = [...otp];
-    newOtp[index] = val;
-    setOtp(newOtp);
+  const handleVerify = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setChecking(true);
+    setMessage("OTP verification is not configured. No code was validated and you cannot proceed to password reset.");
+    setChecking(false);
   };
 
   return (
-    <div className="w-full max-w-md p-8 rounded-2xl border border-slate-800 bg-slate-900/90 shadow-2xl backdrop-blur-md space-y-6">
-      <div className="text-center space-y-2">
-        <div className="w-12 h-12 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center mx-auto">
-          <ShieldCheck className="w-6 h-6" />
-        </div>
-        <h2 className="text-xl font-bold tracking-tight text-white font-mono">
-          Security OTP Verification
-        </h2>
-        <p className="text-xs text-slate-400">
-          Enter the 6-digit confirmation code generated for your session.
-        </p>
+    <div className="w-full max-w-md space-y-6 rounded-2xl border border-slate-800 bg-slate-900/90 p-8 shadow-2xl backdrop-blur-md">
+      <div className="space-y-2 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-indigo-500/30 bg-indigo-600/20 text-indigo-400"><ShieldCheck className="h-6 w-6" /></div>
+        <h1 className="font-mono text-xl font-bold text-white">Verification</h1>
+        <p className="text-xs text-slate-400">A verified recovery challenge is required before password reset.</p>
       </div>
-
-      <form onSubmit={handleVerify} className="space-y-6">
-        <div className="flex justify-center gap-2">
-          {otp.map((digit, i) => (
-            <input
-              key={i}
-              type="text"
-              maxLength={1}
-              value={digit}
-              onChange={(e) => handleDigitChange(i, e.target.value)}
-              className="w-11 h-12 text-center text-lg font-mono font-bold bg-slate-950 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          ))}
-        </div>
-
-        <Button
-          type="submit"
-          variant="primary"
-          size="lg"
-          className="w-full"
-          isLoading={isLoading}
-          rightIcon={<ArrowRight className="w-4 h-4" />}
-        >
-          Confirm & Proceed
-        </Button>
+      {message && <div role="status" className="flex gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200"><AlertTriangle className="h-4 w-4 shrink-0" />{message}</div>}
+      <form onSubmit={handleVerify} className="space-y-4">
+        <Input label="Registered account email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
+        <Input label="Six-digit code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))} />
+        <Button type="submit" variant="primary" size="lg" className="w-full" isLoading={checking}>Check verification availability</Button>
       </form>
     </div>
   );
