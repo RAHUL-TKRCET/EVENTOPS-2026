@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -30,6 +30,8 @@ def client():
         poolclass=StaticPool,
     )
     Base.metadata.create_all(bind=test_engine)
+    with test_engine.connect() as connection:
+        connection.execute(text("PRAGMA foreign_keys=ON"))
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
     def override_get_db():
