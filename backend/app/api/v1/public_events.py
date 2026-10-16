@@ -1,6 +1,5 @@
 """Unauthenticated, published-only event discovery for participant registration."""
 
-from datetime import datetime, timezone
 from typing import List
 
 from fastapi import APIRouter, Depends
@@ -16,7 +15,6 @@ router = APIRouter()
 @router.get("", response_model=List[PublicEventResponse])
 def list_public_events(db: Session = Depends(get_db)):
     """List published events using only approved public fields."""
-    now = datetime.now(timezone.utc)
     events = (
         db.query(Event)
         .filter(Event.status.ilike("PUBLISHED"))
