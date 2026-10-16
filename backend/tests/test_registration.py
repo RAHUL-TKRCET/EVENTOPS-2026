@@ -642,7 +642,9 @@ def test_public_event_registration_creates_participant_and_membership_without_lo
     db = client.registration_test_session()
     try:
         member = db.query(EventMember).filter(EventMember.id == body["registrationId"]).one()
+        assert member.user_id is not None
         user = db.query(User).filter(User.id == member.user_id).one()
+        assert user.id == member.user_id
         assert user.role == "PARTICIPANT"
         assert user.password_hash != delivered[0]["password"]
         assert member.phone == "9999999999"
