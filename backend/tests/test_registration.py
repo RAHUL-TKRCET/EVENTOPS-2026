@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -30,6 +30,8 @@ def client():
         poolclass=StaticPool,
     )
     Base.metadata.create_all(bind=test_engine)
+    with test_engine.connect() as connection:
+        connection.execute(text("PRAGMA foreign_keys=ON"))
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
     def override_get_db():
@@ -640,7 +642,9 @@ def test_public_event_registration_creates_participant_and_membership_without_lo
     db = client.registration_test_session()
     try:
         member = db.query(EventMember).filter(EventMember.id == body["registrationId"]).one()
+        assert member.user_id is not None
         user = db.query(User).filter(User.id == member.user_id).one()
+        assert user.id == member.user_id
         assert user.role == "PARTICIPANT"
         assert user.password_hash != delivered[0]["password"]
         assert member.phone == "9999999999"

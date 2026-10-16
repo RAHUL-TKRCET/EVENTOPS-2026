@@ -289,8 +289,13 @@ def public_event_registration(
     )
 
     db.add(user)
-    db.add(member)
     try:
+        # Persist the parent user before inserting the event_members row.
+        # PostgreSQL enforces event_members.user_id -> users.id, and the
+        # models intentionally do not declare a SQLAlchemy relationship that
+        # would provide this dependency ordering automatically.
+        db.flush()
+        db.add(member)
         db.flush()
         send_participant_credentials(email, name, email, temporary_password, event.name, event.id)
         db.add(AuditLog(
