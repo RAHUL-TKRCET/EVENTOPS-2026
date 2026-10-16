@@ -267,6 +267,7 @@ def test_volunteer_invitation_provisions_event_scoped_record_and_repairs_legacy_
 
         db = Session()
         user = db.query(User).filter(User.email == "new-volunteer@example.com").one()
+        user_id = user.id
         assignment = db.query(Volunteer).filter(
             Volunteer.event_id == "evt-invite", Volunteer.user_id == user.id,
         ).one()
@@ -291,7 +292,7 @@ def test_volunteer_invitation_provisions_event_scoped_record_and_repairs_legacy_
         repaired = db.query(Volunteer).filter(
             Volunteer.event_id == "evt-invite", Volunteer.email == "new-volunteer@example.com",
         ).one()
-        assert repaired.user_id == user.id and repaired.status == "ACTIVE"
+        assert repaired.user_id == user_id and repaired.status == "ACTIVE"
         db.close()
     finally:
         app.dependency_overrides.pop(get_db, None)
