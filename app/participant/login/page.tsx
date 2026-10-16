@@ -23,10 +23,15 @@ export default function ParticipantLoginPage() {
     setBusy(true);
     setError("");
     try {
-      const session = await authApi.login(email, password, "PARTICIPANT");
+      if (!eventId) {
+        throw new Error("This participant login link is missing its event context. Open the login link from your event registration email.");
+      }
+      // Participant access is event-scoped. The server verifies the persisted
+      // participant account and its ACTIVE EventMember assignment for this event.
+      const session = await authApi.eventLogin(eventId, email, password, "PARTICIPANT");
       setCurrentUser(session.user);
       setCurrentRole(session.user.role);
-      router.push(eventId ? `/events/register?eventId=${encodeURIComponent(eventId)}` : "/participant");
+      router.push(`/participant?eventId=${encodeURIComponent(eventId)}`);
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : "Sign-in failed. Check your email and password.");
     } finally {
@@ -47,7 +52,7 @@ export default function ParticipantLoginPage() {
         <form onSubmit={submit} className="space-y-4">
           <Input label="Participant email" type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
           <Input label="Password" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <Button type="submit" variant="primary" className="w-full" isLoading={busy} disabled={busy} rightIcon={<ArrowRight className="h-4 w-4" />}>
+          <Button type="submit" variant="primary" className="w-full" isLoading={busy} disabled={busy || !eventId} rightIcon={<ArrowRight className="h-4 w-4" />}>
             {busy ? "Signing in…" : "Sign in to participant space"}
           </Button>
         </form>
