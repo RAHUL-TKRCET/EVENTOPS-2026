@@ -269,7 +269,7 @@ export default function HomePage() {
                     <Button variant="outline" size="lg" onClick={() => scrollToAccess("LOGIN")}>
                       Sign in to EVENTOPS
                     </Button>
-                    <Button variant="outline" size="lg" onClick={() => router.push("/register?accountType=PARTICIPANT")}>
+                    <Button variant="outline" size="lg" onClick={() => router.push("/events/public")}>
                       Register as a participant
                     </Button>
                   </>

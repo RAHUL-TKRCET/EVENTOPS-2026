@@ -12,9 +12,15 @@ from app.core.email import EmailDeliveryError, send_participant_credentials
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token
 from app.models.entities import User, OrganizationMembership, Organization, Event, EventMember, AuditLog
 from app.schemas.auth import LoginRequest, EventLoginRequest, RegisterRequest, TokenResponse, UserResponse, RoleSwitchRequest, RoleSwitchResponse, VerifyInviteRequest, VerifyInviteResponse, EventRegistrationRequest, EventRegistrationStatusResponse, EventRegistrationResult, EventRegistrationSummary, ProfileUpdateRequest, PublicEventRegistrationRequest, PublicEventRegistrationResponse
+from app.schemas.errors import PUBLIC_REGISTRATION_ERROR_CODES
 from app.api.deps import get_current_user, require_roles
 
 router = APIRouter()
+
+
+def _public_registration_error(code: str) -> dict[str, str]:
+    """Return a stable machine-readable code and safe user-facing message."""
+    return {"code": code, "message": PUBLIC_REGISTRATION_ERROR_CODES[code]}
 
 
 def _token_response(user: User, role: str, organization_id: str | None, event_id: str | None = None) -> TokenResponse:
@@ -176,7 +182,7 @@ def public_event_registration(
     name = payload.name.strip()
     event = db.query(Event).filter(Event.id == payload.eventId).with_for_update().first()
     if not event:
-        raise HTTPException(status_code=404, detail="Event not found.")
+        raise HTTPException(status_code=404, detail=_public_registration_error("EVENT_NOT_FOUND"))
 
     # Do not trust arbitrary X-Forwarded-For headers here; use the address
     # provided by the ASGI server. Hash the email for per-address throttling so
@@ -231,13 +237,13 @@ def public_event_registration(
     db.commit()
 
     if (event.status or "").strip().upper() != "PUBLISHED":
-        raise HTTPException(status_code=409, detail="This event is not published for participant registration.")
+        raise HTTPException(status_code=409, detail=_public_registration_error("EVENT_NOT_PUBLISHED"))
 
     deadline = event.registration_deadline
     if deadline and deadline.tzinfo is None:
         deadline = deadline.replace(tzinfo=timezone.utc)
     if not deadline or deadline <= now:
-        raise HTTPException(status_code=409, detail="The participant registration deadline has passed or is not configured.")
+        raise HTTPException(status_code=409, detail=_public_registration_error("REGISTRATION_DEADLINE_UNAVAILABLE" if not deadline else "REGISTRATION_CLOSED"))
 
     existing_user = db.query(User).filter(User.email.ilike(email)).first()
     if existing_user:
@@ -245,7 +251,7 @@ def public_event_registration(
         # on a user-submitted email address. This also avoids role downgrades.
         raise HTTPException(
             status_code=409,
-            detail="Registration could not be completed with these details. If you already use EVENTOPS, sign in or contact the event organizer for a safe account-linking path.",
+            detail=_public_registration_error("PARTICIPANT_ACCOUNT_EXISTS"),
         )
 
     existing_member = db.query(EventMember).filter(
@@ -256,7 +262,7 @@ def public_event_registration(
     if existing_member:
         raise HTTPException(
             status_code=409,
-            detail="Registration could not be completed with these details. Contact the event organizer if you believe you are already registered.",
+            detail=_public_registration_error("PARTICIPANT_ALREADY_REGISTERED"),
         )
 
     temporary_password = secrets.token_urlsafe(15)
@@ -303,11 +309,11 @@ def public_event_registration(
         db.rollback()
         raise HTTPException(
             status_code=503,
-            detail="Registration could not be completed because participant email delivery is unavailable. Please retry later or contact the organizer.",
+            detail=_public_registration_error("EMAIL_DELIVERY_UNAVAILABLE"),
         ) from exc
     except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Registration could not be completed because of a data conflict. Please retry.") from exc
+        raise HTTPException(status_code=409, detail=_public_registration_error("REGISTRATION_CONFLICT")) from exc
     except Exception:
         db.rollback()
         raise

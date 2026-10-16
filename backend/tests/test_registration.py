@@ -689,7 +689,10 @@ def test_public_event_registration_rejects_closed_or_unpublished_event(client, m
         "email": f"draft-{uuid.uuid4().hex[:8]}@example.com",
     })
     assert response.status_code == 409
-    assert "published" in response.json()["detail"].lower()
+    detail = response.json()["detail"]
+    assert isinstance(detail, dict)
+    assert detail["code"] == "EVENT_NOT_PUBLISHED"
+    assert "registration" in detail["message"].lower()
 
 
 def test_public_event_registration_never_overwrites_existing_account(client, monkeypatch):

@@ -24,7 +24,10 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (legacyParticipantLink) {
-      router.replace(eventId ? `/events/register?eventId=${encodeURIComponent(eventId)}` : "/events");
+      const target = eventId
+        ? `/events/register?eventId=${encodeURIComponent(eventId)}`
+        : "/events/public";
+      router.replace(target);
     }
   }, [eventId, legacyParticipantLink, router]);
 
@@ -81,7 +84,7 @@ export default function RegisterPage() {
         </form>
 
         <div className="space-y-3 border-t border-slate-800 pt-4 text-center text-xs text-slate-400">
-          <p>Looking to participate in an event? <Link href="/events" className="font-semibold text-indigo-400 hover:underline">Browse events</Link> and use the public registration link.</p>
+          <p>Looking to participate in an event? <Link href="/events/public" className="font-semibold text-indigo-400 hover:underline">Browse public events</Link> and register from the event portal.</p>
           <p>Already an administrator? <Link href="/login" className="font-semibold text-indigo-400 hover:underline">Sign in</Link></p>
         </div>
       </section>

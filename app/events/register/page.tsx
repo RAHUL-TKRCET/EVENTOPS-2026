@@ -19,11 +19,46 @@ type PublicRegistrationResult = {
   emailStatus: "sent" | "pending" | "unavailable" | "existing";
   message: string;
 };
+type ApiError = Error & {
+  status?: number;
+  code?: string;
+};
+
 function classify(error: unknown): Failure {
   const status = error && typeof error === "object" && "status" in error ? Number((error as {status?: unknown}).status) : undefined;
   const message = error instanceof Error ? error.message : "Unable to load the event.";
   if (status === 404 || /404|not found/i.test(message)) return { kind: "not-found", message: "This event does not exist or is no longer available." };
   return { kind: "unavailable", message: "The event service could not be reached. Check the connection and try again." };
+}
+
+function registrationErrorMessage(error: unknown): { message: string; showExistingLogin: boolean } {
+  const apiError = (error && typeof error === "object" ? error : {}) as ApiError;
+  const messages: Record<string, string> = {
+    EVENT_NOT_FOUND: "This event is no longer available. Return to public events and choose another event.",
+    EVENT_NOT_PUBLISHED: "This event is not open for participant registration yet. Contact the organizer for the current link.",
+    REGISTRATION_DEADLINE_UNAVAILABLE: "Registration is unavailable because the event deadline is not configured. Contact the organizer.",
+    REGISTRATION_CLOSED: "The registration deadline has passed. Contact the organizer if you think this is incorrect.",
+    PARTICIPANT_ACCOUNT_EXISTS: "An EVENTOPS account already uses these details. Sign in with your existing participant account or contact the organizer for safe account linking. Your account and role were not changed.",
+    PARTICIPANT_ALREADY_REGISTERED: "A participant registration for this event already exists. Sign in to your participant account or contact the organizer for help.",
+    REGISTRATION_CONFLICT: "We could not complete registration because of a data conflict. Retry once; contact the organizer if it continues.",
+    EMAIL_DELIVERY_UNAVAILABLE: "Registration was not completed because participant email delivery is unavailable. No successful registration was recorded. Please retry later or contact the organizer.",
+  };
+  if (apiError.code && messages[apiError.code]) {
+    return {
+      message: messages[apiError.code],
+      showExistingLogin: ["PARTICIPANT_ACCOUNT_EXISTS", "PARTICIPANT_ALREADY_REGISTERED"].includes(apiError.code),
+    };
+  }
+  if (apiError.status === 503) {
+    return { message: messages.EMAIL_DELIVERY_UNAVAILABLE, showExistingLogin: false };
+  }
+  if (apiError.status === 429) {
+    return { message: "Too many registration attempts. Please wait before trying again.", showExistingLogin: false };
+  }
+  return {
+    message: "Registration could not be completed. Check the event link and your details, then try again. If the problem continues, contact the event organizer.",
+    showExistingLogin: false,
+  };
 }
 
 export default function EventRegistrationPage() {
@@ -40,12 +75,13 @@ export default function EventRegistrationPage() {
   const [organizationOrSchool, setOrganizationOrSchool] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [showExistingLogin, setShowExistingLogin] = useState(false);
   const [registration, setRegistration] = useState<PublicRegistrationResult | null>(null);
 
   useEffect(() => {
     let active = true;
     if (!eventId) {
-      setFailure({ kind: "not-found", message: "This registration link is missing its event ID. Return to the event portal and use the organizer's current link." });
+      setFailure({ kind: "not-found", message: "This registration link is missing its event ID. Return to public events or ask the organizer for the current event link." });
       setLoading(false);
       return () => { active = false; };
     }
@@ -77,11 +113,10 @@ export default function EventRegistrationPage() {
     if (!eventId || !registrationOpen || busy) return;
     setBusy(true);
     setNotice("");
+    setShowExistingLogin(false);
     setFailure(null);
     try {
       if (currentUser?.role?.toUpperCase() === "PARTICIPANT") {
-        // Existing participants can register for this additional event with their
-        // authenticated identity; this never creates a second user or emails a new password.
         const result = await authApi.registerForEvent(eventId);
         setRegistration({
           eventId: result.eventId,
@@ -102,15 +137,9 @@ export default function EventRegistrationPage() {
         setRegistration(result);
       }
     } catch (error) {
-      const status = error && typeof error === "object" && "status" in error ? Number((error as {status?: unknown}).status) : undefined;
-      const message = error instanceof Error ? error.message : "Registration could not be completed.";
-      if (status === 409) {
-        setNotice("We could not complete a new participant account with these details. If you already have an EVENTOPS participant account, sign in below to register for this event. Existing accounts and roles are never changed by a public registration request.");
-      } else if (status === 503) {
-        setNotice("Registration was not completed because email delivery is not available right now. Your information was not saved; please retry later or contact the organizer.");
-      } else {
-        setNotice(message);
-      }
+      const mapped = registrationErrorMessage(error);
+      setNotice(mapped.message);
+      setShowExistingLogin(mapped.showExistingLogin);
     } finally {
       setBusy(false);
     }
@@ -154,7 +183,7 @@ export default function EventRegistrationPage() {
                 </Button>
               </form>
             )}
-            {notice.includes("sign in below") && <Button type="button" variant="outline" onClick={() => router.push(`/participant/login?eventId=${encodeURIComponent(eventId)}&email=${encodeURIComponent(email.trim().toLowerCase())}`)}>Sign in to existing participant account <ArrowRight className="ml-2 h-4 w-4" /></Button>}
+            {showExistingLogin && <Button type="button" variant="outline" onClick={() => router.push(`/participant/login?eventId=${encodeURIComponent(eventId)}&email=${encodeURIComponent(email.trim().toLowerCase())}`)}>Sign in to existing participant account <ArrowRight className="ml-2 h-4 w-4" /></Button>}
             <div className="border-t border-slate-800 pt-4"><Button type="button" variant="outline" onClick={() => router.push(`/events/portal?eventId=${encodeURIComponent(eventId)}`)}><ArrowLeft className="mr-2 h-4 w-4" />Event portal</Button></div>
             <p className="text-xs leading-5 text-slate-500">Your credentials are generated securely by the system. Staff assignment and team creation are separate workflows. Existing accounts are never silently overwritten or given a different role.</p>
           </section>

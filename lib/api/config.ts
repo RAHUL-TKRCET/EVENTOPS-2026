@@ -55,12 +55,14 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
 
   if (!response.ok) {
     let errorDetail = `HTTP ${response.status} ${response.statusText}`;
+    let errorCode: string | undefined;
     try {
       const body = await response.json();
       const detail = body.detail;
       if (typeof detail === "string") {
         errorDetail = detail;
       } else if (detail && typeof detail === "object") {
+        errorCode = typeof detail.code === "string" ? detail.code : undefined;
         const parts: string[] = [];
         if (typeof detail.message === "string") parts.push(detail.message);
         if (Array.isArray(detail.problems)) parts.push(...detail.problems.filter((item: unknown): item is string => typeof item === "string"));
@@ -84,8 +86,9 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
       sessionStorage.removeItem("eventops_token");
       window.dispatchEvent(new CustomEvent("eventops:session-expired"));
     }
-    const error = new Error(errorDetail) as Error & { status?: number };
+    const error = new Error(errorDetail) as Error & { status?: number; code?: string };
     error.status = response.status;
+    if (errorCode) error.code = errorCode;
     throw error;
   }
 
