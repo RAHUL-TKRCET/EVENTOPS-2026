@@ -7,6 +7,12 @@ export const eventsApi = {
     return apiRequest<EventItem[]>(`/events${query}`);
   },
 
+  async getPublicList(): Promise<EventItem[]> {
+    return apiRequest<EventItem[]>("/events/public", {
+      headers: { Authorization: "" },
+    });
+  },
+
   async getById(id: string): Promise<EventItem> {
     return apiRequest<EventItem>(`/events/${encodeURIComponent(id)}`);
   },
