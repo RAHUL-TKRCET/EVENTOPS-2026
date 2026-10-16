@@ -45,7 +45,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   // Public pages that do not require an active session
   const isPublicPage =
     pathname === "/" ||
-    ["/login", "/register", "/forgot-password", "/reset-password", "/verify-otp", "/events/register", "/events/registration-status", "/events/public", "/events/portal", "/events/login", "/invitations/accept"].some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)) ||
+    ["/login", "/register", "/forgot-password", "/reset-password", "/verify-otp", "/participant/login", "/events/register", "/events/registration-status", "/events/public", "/events/portal", "/events/login", "/invitations/accept"].some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)) ||
     /^\/events\/[^/]+\/(portal|login)$/.test(pathname);
 
   // Zustand starts empty on a hard refresh. Rehydrate only from a persisted
