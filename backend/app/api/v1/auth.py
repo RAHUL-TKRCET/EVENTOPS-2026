@@ -17,10 +17,10 @@ from app.api.deps import get_current_user, require_roles
 
 router = APIRouter()
 
+
 def _public_registration_error(code: str) -> dict[str, str]:
     """Return a stable machine-readable code and safe user-facing message."""
     return {"code": code, "message": PUBLIC_REGISTRATION_ERROR_CODES[code]}
-
 
 
 def _token_response(user: User, role: str, organization_id: str | None, event_id: str | None = None) -> TokenResponse:
