@@ -75,7 +75,7 @@ def event_login(payload: EventLoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=403, detail="No active event assignment linked to this account was found for the requested role.")
     event = db.query(Event).filter(Event.id == payload.eventId).first()
     if not event:
-        raise HTTPException(status_code=404, detail=_public_registration_error("EVENT_NOT_FOUND"))
+        raise HTTPException(status_code=404, detail="Event not found.")
     return _token_response(user, member.role, event.organization_id, event.id)
 
 
@@ -182,7 +182,7 @@ def public_event_registration(
     name = payload.name.strip()
     event = db.query(Event).filter(Event.id == payload.eventId).with_for_update().first()
     if not event:
-        raise HTTPException(status_code=404, detail="Event not found.")
+        raise HTTPException(status_code=404, detail=_public_registration_error("EVENT_NOT_FOUND"))
 
     # Do not trust arbitrary X-Forwarded-For headers here; use the address
     # provided by the ASGI server. Hash the email for per-address throttling so
