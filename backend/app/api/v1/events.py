@@ -45,8 +45,6 @@ from app.api.deps import get_current_user, get_current_tenant_user, require_role
 router = APIRouter()
 
 
-
-
 def map_event_to_response(event: Event, db: Session) -> EventResponse:
     rounds = db.query(Round).filter(Round.event_id == event.id).order_by(Round.round_order.asc()).all()
     round_schemas = []
@@ -195,6 +193,29 @@ def list_events(
         raise HTTPException(status_code=403, detail="This role cannot list administrative event data.")
 
     return [map_event_to_response(e, db) for e in query.all()]
+
+
+@router.get("/{event_id}/public", response_model=PublicEventResponse)
+def get_public_event(event_id: str, db: Session = Depends(get_db)):
+    """Return only approved event metadata for the unauthenticated public portal."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    return PublicEventResponse(
+        id=event.id,
+        name=event.name,
+        type=event.type,
+        description=event.description,
+        location=event.location,
+        bannerUrl=event.banner_url,
+        startDate=event.start_date.isoformat() if event.start_date else "",
+        endDate=event.end_date.isoformat() if event.end_date else "",
+        registrationDeadline=event.registration_deadline.isoformat() if event.registration_deadline else "",
+        status=event.status,
+        expectedParticipants=event.expected_participants,
+        currentRound=event.current_round,
+        totalRounds=event.total_rounds,
+    )
 
 
 @router.get("/{event_id}", response_model=EventResponse)
