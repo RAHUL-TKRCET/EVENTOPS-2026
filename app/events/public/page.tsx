@@ -79,7 +79,7 @@ export default function PublicEventsPage() {
                   <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-indigo-300" />{event.location || "Location to be announced"}</p>
                   <p className="flex items-center gap-2"><Users className="h-4 w-4 text-indigo-300" />Expected participants: {event.expectedParticipants ?? "Not specified"}</p>
                 </div>
-                <Button variant="primary" block onClick={() => router.push(`/events/portal?eventId=${encodeURIComponent(event.id)}`)}>
+                <Button variant="primary" className="w-full" onClick={() => router.push(`/events/portal?eventId=${encodeURIComponent(event.id)}`)}>
                   View event and register <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </article>
