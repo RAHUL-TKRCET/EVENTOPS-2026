@@ -114,3 +114,177 @@ def test_registration_deadline_expired_returns_typed_error_without_user_mutation
     finally:
         app.dependency_overrides.clear()
         engine.dispose()
+
+
+def test_public_registration_existing_account_preserves_identity_and_role(monkeypatch):
+    from app.core.security import get_password_hash
+
+    client, Session, engine = seeded_client()
+    email = "existing.account@example.com"
+    try:
+        seed_event(Session, event_id="evt-existing-account")
+        db = Session()
+        try:
+            existing = User(
+                id="usr-existing-account",
+                name="Existing Organization Admin",
+                email=email,
+                password_hash=get_password_hash("Existing-password-123!"),
+                role="ORGANIZATION_ADMIN",
+                organization_id=None,
+            )
+            db.add(existing)
+            db.commit()
+        finally:
+            db.close()
+
+        response = client.post("/api/v1/auth/public-event-registration", json={
+            "eventId": "evt-existing-account",
+            "name": "Attempted Replacement",
+            "email": email,
+        })
+        assert response.status_code == 409
+        assert response.json()["detail"]["code"] == "PARTICIPANT_ACCOUNT_EXISTS"
+
+        db = Session()
+        try:
+            persisted = db.query(User).filter(User.email == email).one()
+            assert persisted.id == "usr-existing-account"
+            assert persisted.name == "Existing Organization Admin"
+            assert persisted.role == "ORGANIZATION_ADMIN"
+            assert db.query(EventMember).filter(
+                EventMember.event_id == "evt-existing-account",
+                EventMember.email == email,
+            ).count() == 0
+        finally:
+            db.close()
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+
+def test_public_registration_existing_event_membership_returns_typed_conflict():
+    client, Session, engine = seeded_client()
+    email = "already.member@example.com"
+    try:
+        seed_event(Session, event_id="evt-existing-member")
+        db = Session()
+        try:
+            db.add(EventMember(
+                id="mem-existing-member",
+                event_id="evt-existing-member",
+                user_id=None,
+                name="Existing Member",
+                email=email,
+                role="PARTICIPANT",
+                status="ACTIVE",
+            ))
+            db.commit()
+        finally:
+            db.close()
+
+        response = client.post("/api/v1/auth/public-event-registration", json={
+            "eventId": "evt-existing-member",
+            "name": "Duplicate Member",
+            "email": email,
+        })
+        assert response.status_code == 409
+        assert response.json()["detail"]["code"] == "PARTICIPANT_ALREADY_REGISTERED"
+
+        db = Session()
+        try:
+            assert db.query(User).filter(User.email == email).count() == 0
+            assert db.query(EventMember).filter(
+                EventMember.event_id == "evt-existing-member",
+                EventMember.email == email,
+                EventMember.role == "PARTICIPANT",
+            ).count() == 1
+        finally:
+            db.close()
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+
+def test_public_registration_smtp_failure_rolls_back_user_and_membership(monkeypatch):
+    import app.api.v1.auth as auth_module
+
+    def fail_delivery(*_args, **_kwargs):
+        raise EmailDeliveryError("isolated smtp failure")
+
+    monkeypatch.setattr(auth_module, "send_participant_credentials", fail_delivery)
+    client, Session, engine = seeded_client()
+    email = "smtp.failure@example.com"
+    try:
+        seed_event(Session, event_id="evt-smtp-failure")
+        response = client.post("/api/v1/auth/public-event-registration", json={
+            "eventId": "evt-smtp-failure",
+            "name": "SMTP Rollback Test",
+            "email": email,
+        })
+        assert response.status_code == 503
+        assert response.json()["detail"]["code"] == "EMAIL_DELIVERY_UNAVAILABLE"
+
+        db = Session()
+        try:
+            # The attempt audit remains committed to preserve throttling; the
+            # new identity/membership and success audit must be rolled back.
+            assert db.query(User).filter(User.email == email).count() == 0
+            assert db.query(EventMember).filter(
+                EventMember.event_id == "evt-smtp-failure",
+                EventMember.email == email,
+            ).count() == 0
+            assert db.query(AuditLog).filter(
+                AuditLog.event_id == "evt-smtp-failure",
+                AuditLog.action == "PUBLIC_REGISTRATION_ATTEMPT",
+            ).count() == 1
+            assert db.query(AuditLog).filter(
+                AuditLog.event_id == "evt-smtp-failure",
+                AuditLog.action == "PUBLIC_PARTICIPANT_REGISTERED",
+            ).count() == 0
+        finally:
+            db.close()
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+
+def test_public_registration_ip_throttle_survives_rejected_attempt(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "PUBLIC_REGISTRATION_IP_LIMIT", 1)
+    monkeypatch.setattr(settings, "PUBLIC_REGISTRATION_IP_WINDOW_MINUTES", 30)
+    client, Session, engine = seeded_client()
+    try:
+        seed_event(Session, status="DRAFT", event_id="evt-throttle")
+        first = client.post("/api/v1/auth/public-event-registration", json={
+            "eventId": "evt-throttle",
+            "name": "Throttle Test",
+            "email": "throttle.one@example.com",
+        })
+        assert first.status_code == 409
+        assert first.json()["detail"]["code"] == "EVENT_NOT_PUBLISHED"
+
+        second = client.post("/api/v1/auth/public-event-registration", json={
+            "eventId": "evt-throttle",
+            "name": "Throttle Test",
+            "email": "throttle.two@example.com",
+        })
+        assert second.status_code == 429
+        assert int(second.headers["Retry-After"]) > 0
+
+        db = Session()
+        try:
+            assert db.query(AuditLog).filter(
+                AuditLog.event_id == "evt-throttle",
+                AuditLog.action == "PUBLIC_REGISTRATION_ATTEMPT",
+            ).count() == 1
+            assert db.query(User).filter(User.email.in_([
+                "throttle.one@example.com", "throttle.two@example.com"
+            ])).count() == 0
+            assert db.query(EventMember).filter(EventMember.event_id == "evt-throttle").count() == 0
+        finally:
+            db.close()
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
