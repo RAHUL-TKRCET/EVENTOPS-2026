@@ -692,7 +692,7 @@ def test_public_event_registration_rejects_closed_or_unpublished_event(client, m
     detail = response.json()["detail"]
     assert isinstance(detail, dict)
     assert detail["code"] == "EVENT_NOT_PUBLISHED"
-    assert "published" in detail["message"].lower()
+    assert "registration" in detail["message"].lower()
 
 
 def test_public_event_registration_never_overwrites_existing_account(client, monkeypatch):
