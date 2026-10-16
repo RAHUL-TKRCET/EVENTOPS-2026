@@ -34,9 +34,10 @@ def seeded_client():
     return client, Session, engine
 
 
-def seed_event(Session, *, status="PUBLISHED", deadline_hours=6, event_id="evt-test"):
+def seed_event(Session, *, status="PUBLISHED", deadline_hours=6, event_id="evt-test", org_id=None):
     db = Session()
-    org = Organization(id="org-test", name="Test Org", type="Organization", country="India", city="Hyderabad")
+    org_id = org_id or f"org-{event_id}"
+    org = Organization(id=org_id, name=f"Test Org {event_id}", type="Organization", country="India", city="Hyderabad")
     event = Event(
         id=event_id,
         organization_id=org.id,
@@ -61,8 +62,8 @@ def seed_event(Session, *, status="PUBLISHED", deadline_hours=6, event_id="evt-t
 def test_public_discovery_lists_only_published_and_has_no_auth_requirement():
     client, Session, engine = seeded_client()
     try:
-        seed_event(Session, status="PUBLISHED", event_id="evt-published")
-        seed_event(Session, status="DRAFT", event_id="evt-draft")
+        seed_event(Session, status="PUBLISHED", event_id="evt-published", org_id="org-discovery")
+        seed_event(Session, status="DRAFT", event_id="evt-draft", org_id="org-discovery")
         response = client.get("/api/v1/events/public")
         assert response.status_code == 200
         assert [event["id"] for event in response.json()] == ["evt-published"]
@@ -77,7 +78,7 @@ def test_registration_unpublished_event_returns_typed_error_without_user_mutatio
     try:
         seed_event(Session, status="DRAFT")
         response = client.post("/api/v1/auth/public-event-registration", json={
-            "eventId": "evt-test", "name": "Test User", "email": "new-participant@example.test"
+            "eventId": "evt-test", "name": "Test User", "email": "new.participant@example.com"
         })
         assert response.status_code == 409
         assert response.json()["detail"]["code"] == "EVENT_NOT_PUBLISHED"
@@ -97,7 +98,7 @@ def test_registration_deadline_expired_returns_typed_error_without_user_mutation
     try:
         seed_event(Session, deadline_hours=-1)
         response = client.post("/api/v1/auth/public-event-registration", json={
-            "eventId": "evt-test", "name": "Test User", "email": "expired-participant@example.test"
+            "eventId": "evt-test", "name": "Test User", "email": "expired.participant@example.com"
         })
         assert response.status_code == 409
         assert response.json()["detail"]["code"] == "REGISTRATION_CLOSED"
