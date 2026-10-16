@@ -38,10 +38,13 @@ from app.schemas.entities import (
     RoundCriteriaSchema,
     TimeSlotSchema,
     EventRuleSchema,
+    PublicEventResponse,
 )
 from app.api.deps import get_current_user, get_current_tenant_user, require_roles
 
 router = APIRouter()
+
+
 
 
 def map_event_to_response(event: Event, db: Session) -> EventResponse:
