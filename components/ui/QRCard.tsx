@@ -135,9 +135,11 @@ export const QRCard: React.FC<QRCardProps> = ({
 export interface QRScannerProps {
   onScanSuccess: (token: string) => void;
   className?: string;
+  /** Synthetic sample tokens should be enabled only in an explicitly labelled demo. */
+  allowDemoTokens?: boolean;
 }
 
-export const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, className }) => {
+export const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, className, allowDemoTokens = false }) => {
   const [manualToken, setManualToken] = useState("");
   const [isScanning, setIsScanning] = useState(true);
   const [torchActive, setTorchActive] = useState(false);
@@ -305,7 +307,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, className }
 
         {/* Status prompt */}
         <div className="absolute bottom-4 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-700/80 text-[11px] text-slate-300 font-mono z-10">
-          {cameraActive ? "Camera Live: Scan badge" : "Click 'Start Camera' or use demo tokens"}
+          {cameraActive ? "Camera Live: Scan badge" : "Start the camera or enter a real token / team ID"}
         </div>
       </div>
 
@@ -315,30 +317,16 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, className }
         </div>
       )}
 
-      {/* Quick demo trigger pills for instant reviewer verification */}
-      <div className="space-y-2">
-        <p className="text-[11px] text-slate-400 font-medium">Quick Demo Simulation (Test Badges):</p>
-        <div className="flex flex-wrap gap-1.5">
-          <button
-            onClick={() => simulateQuickScan("EVENTOPS_QR_EVT01_T042_SECURE_TOKEN_2026")}
-            className="text-[11px] font-mono px-2 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 transition cursor-pointer"
-          >
-            Scan Team T042 (BioSense)
-          </button>
-          <button
-            onClick={() => simulateQuickScan("EVENTOPS_QR_EVT01_T001_SECURE_TOKEN_2026")}
-            className="text-[11px] font-mono px-2 py-1 rounded bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 transition cursor-pointer"
-          >
-            Scan Team T001 (NeuralPulse)
-          </button>
-          <button
-            onClick={() => simulateQuickScan("EVENTOPS_QR_EVT01_T015_SECURE_TOKEN_2026")}
-            className="text-[11px] font-mono px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition cursor-pointer"
-          >
-            Scan Team T015 (Absent)
-          </button>
+      {allowDemoTokens && (
+        <div className="space-y-2">
+          <p className="text-[11px] text-amber-300 font-medium">Demo mode only — synthetic tokens are not real attendance or inventory data:</p>
+          <div className="flex flex-wrap gap-1.5">
+            <button type="button" onClick={() => simulateQuickScan("EVENTOPS_QR_EVT01_T042_SECURE_TOKEN_2026")} className="text-[11px] font-mono px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition cursor-pointer">Sample token A</button>
+            <button type="button" onClick={() => simulateQuickScan("EVENTOPS_QR_EVT01_T001_SECURE_TOKEN_2026")} className="text-[11px] font-mono px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition cursor-pointer">Sample token B</button>
+            <button type="button" onClick={() => simulateQuickScan("EVENTOPS_QR_EVT01_T015_SECURE_TOKEN_2026")} className="text-[11px] font-mono px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition cursor-pointer">Sample token C</button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Manual Code Input fallback */}
       <div className="pt-2 border-t border-slate-800/80 space-y-2">

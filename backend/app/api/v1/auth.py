@@ -11,7 +11,7 @@ from app.core.database import get_db
 from app.core.email import EmailDeliveryError, send_participant_credentials
 from app.core.security import verify_password, get_password_hash, create_access_token, create_refresh_token
 from app.models.entities import User, OrganizationMembership, Organization, Event, EventMember, AuditLog
-from app.schemas.auth import LoginRequest, EventLoginRequest, RegisterRequest, TokenResponse, UserResponse, RoleSwitchRequest, RoleSwitchResponse, VerifyInviteRequest, VerifyInviteResponse, EventRegistrationRequest, EventRegistrationStatusResponse, EventRegistrationResult, EventRegistrationSummary, PublicEventRegistrationRequest, PublicEventRegistrationResponse
+from app.schemas.auth import LoginRequest, EventLoginRequest, RegisterRequest, TokenResponse, UserResponse, RoleSwitchRequest, RoleSwitchResponse, VerifyInviteRequest, VerifyInviteResponse, EventRegistrationRequest, EventRegistrationStatusResponse, EventRegistrationResult, EventRegistrationSummary, ProfileUpdateRequest, PublicEventRegistrationRequest, PublicEventRegistrationResponse
 from app.api.deps import get_current_user, require_roles
 
 router = APIRouter()
@@ -479,6 +479,53 @@ def register_for_event(
 def get_current_user_profile(current_user: User = Depends(get_current_user)):
     # get_current_user verifies the role and event scope from the access JWT.
     # Return that verified context, not only the account's persisted default role.
+    active_role = getattr(current_user, "active_role", None) or current_user.role
+    active_org = getattr(current_user, "active_organization_id", None) or current_user.organization_id
+    return UserResponse(
+        id=current_user.id,
+        name=current_user.name,
+        email=current_user.email,
+        phone=current_user.phone,
+        role=active_role,
+        organizationId=active_org,
+        createdAt=current_user.created_at.isoformat() if current_user.created_at else None,
+    )
+
+
+@router.patch("/me", response_model=UserResponse)
+def update_current_user_profile(
+    payload: ProfileUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Persist safe self-service profile fields without allowing role/org changes."""
+    email = str(payload.email).strip().lower()
+    duplicate = db.query(User).filter(
+        User.email.ilike(email),
+        User.id != current_user.id,
+    ).first()
+    if duplicate:
+        raise HTTPException(status_code=409, detail="An account with this email address already exists.")
+
+    current_user.name = payload.name.strip()
+    current_user.email = email
+    current_user.phone = payload.phone.strip() if payload.phone else None
+    try:
+        db.add(AuditLog(
+            id=f"audit-{uuid.uuid4().hex[:12]}",
+            event_id=getattr(current_user, "active_event_id", None),
+            user_id=current_user.id,
+            user_role=getattr(current_user, "active_role", None) or current_user.role,
+            action="PROFILE_UPDATED",
+            resource_type="User",
+            resource_id=current_user.id,
+        ))
+        db.commit()
+        db.refresh(current_user)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Profile could not be updated because the email address is already in use.") from exc
+
     active_role = getattr(current_user, "active_role", None) or current_user.role
     active_org = getattr(current_user, "active_organization_id", None) or current_user.organization_id
     return UserResponse(

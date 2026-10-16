@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from app.core.database import get_db
 from app.api.deps import require_roles, User
+from app.models.entities import Organization, Event, EventMember, AuditLog
+from app.api.v1.events import _is_platform_admin
 from app.api.v1 import (
     auth,
     events,
@@ -16,6 +19,7 @@ from app.api.v1 import (
     resources,
     analytics,
     invitations,
+    volunteers,
 )
 
 api_router = APIRouter()
@@ -32,6 +36,53 @@ api_router.include_router(incidents.router, prefix="/incidents", tags=["Incident
 api_router.include_router(resources.router, prefix="/resources", tags=["Logistics & Meal Resources"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Executive Telemetry & KPIs"])
 api_router.include_router(invitations.router, prefix="/invitations", tags=["Secure Invitations"])
+api_router.include_router(volunteers.router, prefix="/volunteers", tags=["Volunteer Workspace"])
+
+
+@api_router.get("/admin/overview", tags=["System Governance"])
+def get_super_admin_overview(
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_roles(["SUPER_ADMIN"])),
+):
+    """Return platform-wide aggregate metrics to an unscoped Super Admin only."""
+    if not _is_platform_admin(actor):
+        raise HTTPException(status_code=403, detail="Platform governance requires a global Super Admin session.")
+
+    events = db.query(Event.status).all()
+    status_counts = {}
+    for (event_status,) in events:
+        key = (event_status or "UNKNOWN").upper()
+        status_counts[key] = status_counts.get(key, 0) + 1
+
+    activity = (
+        db.query(AuditLog)
+        .order_by(AuditLog.created_at.desc())
+        .limit(8)
+        .all()
+    )
+    return {
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "counts": {
+            "organizations": db.query(Organization).count(),
+            "users": db.query(User).count(),
+            "events": len(events),
+            "eventMembers": db.query(EventMember).count(),
+            "auditRecords": db.query(AuditLog).count(),
+        },
+        "eventsByStatus": status_counts,
+        "recentActivity": [
+            {
+                "id": item.id,
+                "action": item.action,
+                "resourceType": item.resource_type,
+                "resourceId": item.resource_id,
+                "eventId": item.event_id,
+                "userRole": item.user_role,
+                "createdAt": item.created_at.isoformat() if item.created_at else None,
+            }
+            for item in activity
+        ],
+    }
 
 
 @api_router.get("/database/tables", tags=["System Governance"])
