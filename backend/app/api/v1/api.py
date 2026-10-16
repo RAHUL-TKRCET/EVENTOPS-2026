@@ -9,6 +9,7 @@ from app.api.v1.events import _is_platform_admin
 from app.api.v1 import (
     auth,
     events,
+    public_events,
     judges,
     teams,
     venues,
@@ -26,6 +27,7 @@ api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication & RBAC"])
 api_router.include_router(events.router, prefix="/events", tags=["Events & Stages"])
+api_router.include_router(public_events.router, prefix="/events/public", tags=["Public Event Discovery"])
 api_router.include_router(judges.router, prefix="/judges", tags=["Judge Enrollment & Assignments"])
 api_router.include_router(teams.router, prefix="/teams", tags=["Teams & Check-in"])
 api_router.include_router(venues.router, prefix="/venues", tags=["Venues & Benches"])
@@ -100,4 +102,3 @@ def list_database_tables(
         result = db.execute(text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"))
         return [row[0] for row in result]
     return []
-
