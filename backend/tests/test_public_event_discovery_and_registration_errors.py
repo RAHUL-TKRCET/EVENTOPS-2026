@@ -37,7 +37,10 @@ def seeded_client():
 def seed_event(Session, *, status="PUBLISHED", deadline_hours=6, event_id="evt-test", org_id=None):
     db = Session()
     org_id = org_id or f"org-{event_id}"
-    org = Organization(id=org_id, name=f"Test Org {event_id}", type="Organization", country="India", city="Hyderabad")
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if org is None:
+        org = Organization(id=org_id, name=f"Test Org {event_id}", type="Organization", country="India", city="Hyderabad")
+        db.add(org)
     event = Event(
         id=event_id,
         organization_id=org.id,
@@ -54,7 +57,7 @@ def seed_event(Session, *, status="PUBLISHED", deadline_hours=6, event_id="evt-t
         current_round=1,
         total_rounds=2,
     )
-    db.add_all([org, event])
+    db.add(event)
     db.commit()
     db.close()
 
