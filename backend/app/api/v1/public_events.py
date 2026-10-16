@@ -1,6 +1,7 @@
 """Unauthenticated, published-only event discovery for participant registration."""
 
 from typing import List
+from datetime import timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
