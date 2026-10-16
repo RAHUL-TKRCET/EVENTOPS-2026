@@ -15,7 +15,7 @@ if backend_dir not in sys.path:
 from app.main import app
 from app.core.database import Base, get_db
 from app.core.security import get_password_hash
-from app.models.entities import AuditLog, Event, EventMember, Invitation, Judge, Organization, OrganizationMembership, User
+from app.models.entities import AuditLog, Event, EventMember, Invitation, Judge, Organization, OrganizationMembership, User, Volunteer
 
 
 def _token(user_id: str, role: str, organization_id: str | None, event_id: str | None = None) -> str:
@@ -244,6 +244,55 @@ def test_invitation_list_and_revoke_are_limited_to_authorized_event_scope():
         list_after_revoke = client.get("/api/v1/invitations?eventId=evt-invite", headers=headers)
         assert list_after_revoke.status_code == 200
         assert next(row for row in list_after_revoke.json() if row["id"] == item["id"])["status"] == "REVOKED"
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        engine.dispose()
+
+
+def test_volunteer_invitation_provisions_event_scoped_record_and_repairs_legacy_assignment():
+    client, Session, engine = _seeded_client()
+    try:
+        _seed_org_event(Session)
+        headers = {"Authorization": f"Bearer {_token('usr-owner', 'ORGANIZATION_ADMIN', 'org-invite')}"}
+        created = client.post("/api/v1/invitations", headers=headers, json={
+            "email": "new-volunteer@example.com", "role": "VOLUNTEER", "eventId": "evt-invite",
+        })
+        assert created.status_code == 201, created.text
+        token = created.json()["token"]
+        accepted = client.post("/api/v1/invitations/accept", json={
+            "token": token, "name": "New Volunteer", "password": "Volunteer-password-123",
+        })
+        assert accepted.status_code == 200, accepted.text
+        assert accepted.json()["role"] == "VOLUNTEER"
+
+        db = Session()
+        user = db.query(User).filter(User.email == "new-volunteer@example.com").one()
+        assignment = db.query(Volunteer).filter(
+            Volunteer.event_id == "evt-invite", Volunteer.user_id == user.id,
+        ).one()
+        assert assignment.status == "ACTIVE"
+        assert assignment.role == "VOLUNTEER"
+        assert assignment.zone == "UNASSIGNED"
+        assert assignment.name == user.name
+        assert assignment.email == user.email
+
+        # Simulate an old active membership whose Volunteer row was lost; re-acceptance repairs it.
+        db.query(Volunteer).filter(Volunteer.id == assignment.id).delete()
+        invitation = db.query(Invitation).filter(Invitation.id == created.json()["id"]).one()
+        invitation.status = "PENDING"
+        invitation.accepted_at = None
+        db.commit()
+        db.close()
+        repairedResponse = client.post("/api/v1/invitations/accept", json={
+            "token": token, "name": "New Volunteer", "password": "Volunteer-password-123",
+        })
+        assert repairedResponse.status_code == 200, repairedResponse.text
+        db = Session()
+        repaired = db.query(Volunteer).filter(
+            Volunteer.event_id == "evt-invite", Volunteer.email == "new-volunteer@example.com",
+        ).one()
+        assert repaired.user_id == user.id and repaired.status == "ACTIVE"
+        db.close()
     finally:
         app.dependency_overrides.pop(get_db, None)
         engine.dispose()
