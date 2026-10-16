@@ -22,6 +22,7 @@ from app.models.entities import (
     Judge,
     Organization,
     User,
+    Volunteer,
 )
 
 router = APIRouter()
@@ -276,6 +277,45 @@ def verify_invitation(payload: InvitationVerifyRequest, db: Session = Depends(ge
     )
 
 
+def _ensure_volunteer_assignment(db: Session, event_id: str, user: User, email: str) -> Volunteer:
+    """Create or repair the role-specific volunteer record for an accepted invitation."""
+    assignment = (
+        db.query(Volunteer)
+        .filter(Volunteer.event_id == event_id, Volunteer.user_id == user.id)
+        .with_for_update()
+        .first()
+    )
+    if assignment is None:
+        assignment = (
+            db.query(Volunteer)
+            .filter(Volunteer.event_id == event_id, Volunteer.email.ilike(email))
+            .with_for_update()
+            .first()
+        )
+    if assignment is None:
+        assignment = Volunteer(
+            id=f"vol-{uuid.uuid4().hex[:16]}",
+            event_id=event_id,
+            user_id=user.id,
+            name=user.name,
+            email=email,
+            phone=user.phone,
+            role="VOLUNTEER",
+            zone="UNASSIGNED",
+            status="ACTIVE",
+        )
+        db.add(assignment)
+    else:
+        assignment.user_id = user.id
+        assignment.name = user.name
+        assignment.email = email
+        assignment.phone = user.phone
+        assignment.role = assignment.role or "VOLUNTEER"
+        assignment.zone = assignment.zone or "UNASSIGNED"
+        assignment.status = "ACTIVE"
+    return assignment
+
+
 @router.post("/accept", response_model=InvitationAccepted)
 def accept_invitation(
     payload: InvitationAcceptRequest,
@@ -316,6 +356,8 @@ def accept_invitation(
     ).first()
     if existing_member:
         if existing_member.status == "ACTIVE":
+            if invitation.role == "VOLUNTEER":
+                _ensure_volunteer_assignment(db, invitation.event_id, user, email)
             invitation.status = "ACCEPTED"
             invitation.accepted_at = _now()
             _audit(db, user, "INVITATION_ACCEPTED_ALREADY_ASSIGNED", invitation, {"role": invitation.role})
@@ -334,6 +376,9 @@ def accept_invitation(
             status="ACTIVE",
             added_by=invitation.invited_by,
         ))
+
+    if invitation.role == "VOLUNTEER":
+        _ensure_volunteer_assignment(db, invitation.event_id, user, email)
 
     if invitation.role == "JUDGE":
         judge = db.query(Judge).filter(
