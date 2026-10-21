@@ -66,7 +66,7 @@ class EventCreate(BaseModel):
     endDate: str
     registrationDeadline: str
     expectedParticipants: int = 100
-    totalRounds: int = 2
+    totalRounds: int = Field(default=2, ge=1, le=10)
     rounds: Optional[List[RoundSchema]] = []
     timeSlots: Optional[List[TimeSlotSchema]] = []
     rules: Optional[List[EventRuleSchema]] = []
