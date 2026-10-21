@@ -1,6 +1,9 @@
 import os
 import sys
 
+import pytest
+from pydantic import ValidationError
+
 backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
@@ -27,6 +30,14 @@ def _payload(total_rounds: int, rounds=None) -> EventCreate:
         totalRounds=total_rounds,
         rounds=rounds,
     )
+
+
+def test_total_rounds_rejects_values_outside_supported_bounds():
+    with pytest.raises(ValidationError):
+        _payload(0)
+
+    with pytest.raises(ValidationError):
+        _payload(11)
 
 
 def test_default_round_records_match_requested_total_rounds():
