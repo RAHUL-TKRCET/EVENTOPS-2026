@@ -135,6 +135,49 @@ def _is_platform_admin(user: User) -> bool:
     return _active_role(user) == "SUPER_ADMIN" and not getattr(user, "active_event_id", None)
 
 
+def _resolve_event_rounds(payload: EventCreate) -> tuple[int, List[RoundSchema]]:
+    """Keep the event's declared round count aligned with its persisted round records."""
+    if payload.rounds:
+        return len(payload.rounds), payload.rounds
+
+    default_round_names = ["Screening", "Prototype Demo", "Jury Grand Finale"]
+    round_count = max(1, payload.totalRounds)
+    default_criteria = [
+        RoundCriteriaSchema(
+            id="c1",
+            name="Technical Feasibility",
+            maxScore=25,
+            weight=0.25,
+            description="System architecture",
+        ),
+        RoundCriteriaSchema(
+            id="c2",
+            name="Impact & Innovation",
+            maxScore=25,
+            weight=0.25,
+            description="Practical value",
+        ),
+    ]
+    rounds = [
+        RoundSchema(
+            id=f"rnd-default-{index}",
+            name=(
+                default_round_names[index - 1]
+                if index <= len(default_round_names)
+                else f"Round {index}"
+            ),
+            order=index,
+            status="UPCOMING",
+            startTime=payload.startDate,
+            endTime=payload.endDate,
+            qualifyingQuota=20,
+            criteria=default_criteria,
+        )
+        for index in range(1, round_count + 1)
+    ]
+    return round_count, rounds
+
+
 def require_event_scope(event: Event, user: User) -> None:
     """Authorize event access from the verified principal, not client-supplied tenant headers."""
     role = _active_role(user)
@@ -253,27 +296,19 @@ def create_event(
             raise HTTPException(status_code=422, detail="Event dates must be valid ISO-8601 timestamps.") from exc
 
     new_id = f"evt-{uuid.uuid4().hex[:8]}"
+    round_count, rounds_to_create = _resolve_event_rounds(payload)
     event = Event(
         id=new_id, organization_id=organization_id, owner_id=current_user.id,
         is_personal_event=payload.isPersonalEvent, name=payload.name, type=payload.type,
         description=payload.description, location=payload.location,
         start_date=parse_dt(payload.startDate), end_date=parse_dt(payload.endDate),
         registration_deadline=parse_dt(payload.registrationDeadline),
-        status="DRAFT", expected_participants=payload.expectedParticipants, total_rounds=payload.totalRounds,
+        status="DRAFT", expected_participants=payload.expectedParticipants, total_rounds=round_count,
     )
     db.add(event)
     try:
         db.flush()
-        rounds_to_create = payload.rounds or [
-            RoundSchema(
-                id="rnd-1", name="Round 1 — Initial Evaluation", order=1, status="UPCOMING",
-                startTime=payload.startDate, endTime=payload.endDate, qualifyingQuota=20,
-                criteria=[
-                    RoundCriteriaSchema(id="c1", name="Technical Feasibility", maxScore=25, weight=0.25, description="System architecture"),
-                    RoundCriteriaSchema(id="c2", name="Impact & Innovation", maxScore=25, weight=0.25, description="Practical value"),
-                ],
-            )
-        ]
+
         for round_data in rounds_to_create:
             round_record = Round(
                 id=f"rnd-{uuid.uuid4().hex[:6]}", event_id=new_id, name=round_data.name,
