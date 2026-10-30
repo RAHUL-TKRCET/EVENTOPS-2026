@@ -33,6 +33,12 @@ export function getAuthHeaders(extraHeaders: Record<string, string> = {}): Recor
   return headers;
 }
 
+export type ApiRequestError = Error & {
+  status?: number;
+  code?: string;
+  endpoint?: string;
+};
+
 export async function apiRequest<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
   const url = `${API_BASE_URL}${cleanEndpoint}`;
@@ -46,11 +52,13 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
   try {
     response = await fetch(url, { ...options, headers: mergedHeaders });
   } catch (error) {
-    const reason =
-      error instanceof Error && error.name === "AbortError"
-        ? "The request timed out or was cancelled."
-        : "The browser could not reach the API. Check backend availability, CORS, and network access.";
-    throw new Error(`${reason} API endpoint: ${url}`);
+    const aborted = error instanceof Error && error.name === "AbortError";
+    const reason = aborted
+      ? "The request timed out or was cancelled."
+      : "The browser could not complete the API request. This can be caused by network, CORS, TLS, or service connectivity.";
+    const failure = new Error(`${reason} API endpoint: ${url}`) as ApiRequestError;
+    failure.endpoint = url;
+    throw failure;
   }
 
   if (!response.ok) {
@@ -77,6 +85,7 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
     } catch {
       // Keep HTTP status when the response is not JSON.
     }
+
     if (response.status === 401 && mergedHeaders.Authorization && typeof window !== "undefined") {
       // Only clear a session when a request carrying its token is rejected.
       // Public requests without a bearer token must not mutate session state.
@@ -86,10 +95,12 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
       sessionStorage.removeItem("eventops_token");
       window.dispatchEvent(new CustomEvent("eventops:session-expired"));
     }
-    const error = new Error(errorDetail) as Error & { status?: number; code?: string };
-    error.status = response.status;
-    if (errorCode) error.code = errorCode;
-    throw error;
+
+    const failure = new Error(errorDetail) as ApiRequestError;
+    failure.status = response.status;
+    failure.endpoint = url;
+    if (errorCode) failure.code = errorCode;
+    throw failure;
   }
 
   if (response.status === 204) return {} as T;
