@@ -37,8 +37,9 @@ type EventMember = {
 };
 
 type ApiFailure = {
-  kind: "unauthenticated" | "forbidden" | "not-found" | "unavailable" | "unknown";
+  kind: "unauthenticated" | "forbidden" | "not-found" | "unavailable" | "server" | "unknown";
   message: string;
+  hint?: string;
 };
 
 function classifyFailure(error: unknown): ApiFailure {
@@ -55,10 +56,13 @@ function classifyFailure(error: unknown): ApiFailure {
   if (status === 404 || /404|not found/i.test(message)) {
     return { kind: "not-found", message: "This event could not be found. Check the event link or return to your Events list." };
   }
-  if (/could not reach the API|network|failed to fetch|endpoint:/i.test(message)) {
-    return { kind: "unavailable", message: "The event service could not be reached. Check connectivity and the configured backend, then retry." };
+  if (/could not reach the API|network|failed to fetch|endpoint:|cors|tls/i.test(message)) {
+    return { kind: "unavailable", message: "The browser could not complete the request to the event service.", hint: "Possible causes include network connectivity, CORS, TLS, or backend availability. Retry and inspect the browser request if it continues." };
   }
-  return { kind: "unknown", message };
+  if (status && status >= 500) {
+    return { kind: "server", message: "The event service returned a server error.", hint: "The backend responded but could not complete this request. Try again later." };
+  }
+  return { kind: "unknown", message, hint: "Retry the request. If it persists, report this message and the time it occurred." };
 }
 
 function toPortalRoute(eventId: string): string {
@@ -234,10 +238,11 @@ export default function StaticEventDetailPage() {
     const failure = error ?? { kind: "not-found" as const, message: "This event could not be loaded." };
     return (
       <div className="mx-auto max-w-2xl space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-        <h2 className="font-mono text-lg font-bold text-white">{failure.kind === "unauthenticated" ? "Sign-in required" : failure.kind === "forbidden" ? "Access denied" : failure.kind === "not-found" ? "Event not found" : "Unable to open event hub"}</h2>
+        <h2 className="font-mono text-lg font-bold text-white">{failure.kind === "unauthenticated" ? "Sign-in required" : failure.kind === "forbidden" ? "Access denied" : failure.kind === "not-found" ? "Event not found" : failure.kind === "unavailable" ? "Connection problem" : failure.kind === "server" ? "Event service error" : "Unable to open event hub"}</h2>
         <p role="alert" className="text-sm text-slate-300">{failure.message}</p>
+        {failure.hint && <p className="text-sm text-slate-400">{failure.hint}</p>}
         <div className="flex flex-wrap gap-2">
-          {failure.kind === "unauthenticated" && <Button variant="primary" onClick={() => router.push(`/events/login?eventId=${encodeURIComponent(eventId)}`)}>Sign in</Button>}
+          {failure.kind === "unauthenticated" && <Button variant="primary" onClick={() => router.push("/login")}>Admin sign in</Button>}
           <Button variant="outline" onClick={() => void loadEvent()}>Retry</Button>
           <Button variant="outline" onClick={() => router.push("/events")}>Back to Events</Button>
         </div>
